@@ -2,7 +2,7 @@ package com.courier.main;
 
 import javax.swing.SwingUtilities;
 
-import com.courier.view.common.BaseFrame;
+import com.courier.view.admin.AdminFrame;
 
 public class GUITest {
 
@@ -10,11 +10,8 @@ public class GUITest {
 
         SwingUtilities.invokeLater(() -> {
 
-            BaseFrame frame = new BaseFrame(
-                "Dashboard",
-                "Kunjal",
-                "Administrator"
-            );
+            AdminFrame frame =
+                    new AdminFrame("Kunjal");
 
             frame.setVisible(true);
         });

@@ -18,6 +18,7 @@ import com.courier.util.FontManager;
 
 public class SidebarPanel extends JPanel {
 	private JPanel navigationPanel;
+	private JButton settingsButton;
     public SidebarPanel(String[] menuItems) {
 
     	navigationPanel = new JPanel(new GridLayout(0, 1, 0, 8));
@@ -41,10 +42,18 @@ public class SidebarPanel extends JPanel {
 
         brandPanel.setOpaque(false);
 
-        JLabel brand = new JLabel("COURIER");
+        ImageIcon logoIcon = IconManager.getIcon("logo.jpg", 32, 32);
+
+        JLabel logoLabel = new JLabel();
+        if (logoIcon != null) {
+            logoLabel.setIcon(logoIcon);
+        }
+
+        JLabel brand = new JLabel("KahinBhi");
         brand.setFont(FontManager.semiBold(20));
         brand.setForeground(AppTheme.PRIMARY);
 
+        brandPanel.add(logoLabel);
         brandPanel.add(brand);
 
         add(brandPanel, BorderLayout.NORTH);
@@ -80,8 +89,8 @@ public class SidebarPanel extends JPanel {
 
         bottomPanel.setOpaque(false);
 
-        JButton settings = createMenuButton("Settings");
-        bottomPanel.add(settings);
+        settingsButton = createMenuButton("Settings");
+        bottomPanel.add(settingsButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
         
@@ -154,21 +163,43 @@ public class SidebarPanel extends JPanel {
         }
     }
     
-    public void setMenuAction(String menuText, Runnable action) {
+    public void setMenuAction(
+            String menuText,
+            Runnable action) {
 
-        for (java.awt.Component component : navigationPanel.getComponents()) {
+        for (java.awt.Component component :
+                navigationPanel.getComponents()) {
 
             if (component instanceof JButton button
                     && button.getText().equals(menuText)) {
 
                 for (java.awt.event.ActionListener listener :
                         button.getActionListeners()) {
+
                     button.removeActionListener(listener);
                 }
 
-                button.addActionListener(e -> action.run());
+                button.addActionListener(
+                    e -> action.run()
+                );
+
                 return;
             }
+        }
+
+        // Settings is located in the bottom section
+        if ("Settings".equals(menuText)
+                && settingsButton != null) {
+
+            for (java.awt.event.ActionListener listener :
+                    settingsButton.getActionListeners()) {
+
+                settingsButton.removeActionListener(listener);
+            }
+
+            settingsButton.addActionListener(
+                e -> action.run()
+            );
         }
     }
 }
