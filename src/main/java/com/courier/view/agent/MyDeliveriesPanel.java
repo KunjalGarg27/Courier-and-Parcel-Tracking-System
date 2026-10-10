@@ -2,11 +2,11 @@ package com.courier.view.agent;
 
 import javax.swing.JPanel;
 
-public class AgentDashboardPanel extends JPanel {
+public class MyDeliveriesPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    public AgentDashboardPanel() {
-        // Dashboard UI will be added here
+    public MyDeliveriesPanel() {
+        // My Deliveries UI
     }
 }
