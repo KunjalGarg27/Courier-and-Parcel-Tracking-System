@@ -133,36 +133,39 @@ public class SidebarPanel extends JPanel {
             "Reports"
         });
     }
-    private String getIconFileName(String text) {
 
-        switch (text) {
+private String getIconFileName(String text) {
 
-            case "Dashboard":
-                return "dashboard-panel.png";
+    switch (text) {
 
-            case "Tracking":
-                return "track.png";
+        case "Dashboard":
+            return "dashboard-panel.png";
 
-            case "Shipments":
-                return "box-alt.png";
+        case "Tracking":
+            return "track.png";
 
-            case "Customers":
-                return "people-carry-box.png";
+        case "My Deliveries":
+        case "Shipments":
+            return "box-alt.png";
 
-            case "Delivery Agents":
-                return "delivery-man.png";
+        case "Delivery History":
+        case "Reports":
+            return "data-report.png";
 
-            case "Reports":
-                return "data-report.png";
+        case "Customers":
+            return "people-carry-box.png";
 
-            case "Settings":
-                return "settings.png";
+        case "Delivery Agents":
+            return "delivery-man.png";
 
-            default:
-                return "";
-        }
+        case "Settings":
+            return "settings.png";
+
+        default:
+            return "";
     }
-    
+}
+
     public void setMenuAction(
             String menuText,
             Runnable action) {
