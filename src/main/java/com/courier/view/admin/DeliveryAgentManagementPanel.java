@@ -31,6 +31,13 @@ import com.courier.util.AppTheme;
 import com.courier.util.FontManager;
 import com.courier.view.common.components.AppCard;
 
+import java.awt.Color;
+import java.math.BigDecimal;
+
+import org.openstreetmap.gui.jmapviewer.Coordinate;
+import org.openstreetmap.gui.jmapviewer.JMapViewer;
+import org.openstreetmap.gui.jmapviewer.MapMarkerDot;
+import org.openstreetmap.gui.jmapviewer.tilesources.OsmTileSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -190,10 +197,12 @@ public class DeliveryAgentManagementPanel extends JPanel {
                 if (row >= 0) {
                     int modelRow = agentTable.convertRowIndexToModel(row);
 
-                    String id = tableModel.getValueAt(modelRow, 0).toString();
-                    String name = tableModel.getValueAt(modelRow, 1).toString();
+                    long agentId = Long.parseLong(valueAt(modelRow, 0));
+                    String name = valueAt(modelRow, 1);
 
-                    mapPanel.setAgent(id, name);
+                    mapPanel.setAgent(agentId, name);
+                } else {
+                    mapPanel.clearAgent();
                 }
             }
         });
@@ -271,15 +280,14 @@ public class DeliveryAgentManagementPanel extends JPanel {
     }
 
     private void viewLocation() {
+        int row = agentTable.getSelectedRow();
 
-        int selectedRow = agentTable.getSelectedRow();
-
-        if (selectedRow < 0) {
+        if (row < 0) {
             showSelectAgentMessage();
             return;
         }
 
-        int modelRow = agentTable.convertRowIndexToModel(selectedRow);
+        int modelRow = agentTable.convertRowIndexToModel(row);
 
         try {
             long agentId = Long.parseLong(valueAt(modelRow, 0));
@@ -288,42 +296,54 @@ public class DeliveryAgentManagementPanel extends JPanel {
             String[] location = agentService.getLatestLocation(agentId);
 
             if (location == null) {
+                mapPanel.clearLocation();
+
                 JOptionPane.showMessageDialog(
                         this,
                         "No location has been recorded for "
-                                + agentName + " yet.\n\n"
-                                + "Agent ID: " + agentId + "\n"
-                                + "Ask the delivery agent to share a location "
-                                + "or add a test location record.",
+                                + agentName + ".\n\n"
+                                + "The map cannot show an agent marker "
+                                + "until coordinates are available.",
                         "Location Unavailable",
                         JOptionPane.INFORMATION_MESSAGE
                 );
                 return;
             }
 
-            String message =
-                    "Delivery Agent: " + agentName + "\n"
-                    + "Agent ID: " + agentId + "\n\n"
-                    + "Latest Recorded Location\n"
-                    + "------------------------------\n"
-                    + "Latitude: " + location[0] + "\n"
-                    + "Longitude: " + location[1] + "\n"
-                    + "GPS Accuracy: " + location[2] + "\n"
-                    + "Recorded At: " + location[3] + "\n\n"
-                    + "Note: This is the latest stored location, "
-                    + "not live GPS tracking.";
+            double latitude = Double.parseDouble(location[0]);
+            double longitude = Double.parseDouble(location[1]);
+
+            if (!Double.isFinite(latitude)
+                    || !Double.isFinite(longitude)
+                    || latitude < -90 || latitude > 90
+                    || longitude < -180 || longitude > 180) {
+                throw new IllegalArgumentException(
+                        "Stored GPS coordinates are invalid."
+                );
+            }
+
+            mapPanel.showLocation(
+                    agentId, agentName, latitude, longitude
+            );
 
             JOptionPane.showMessageDialog(
                     this,
-                    message,
+                    "Agent: " + agentName + "\n"
+                            + "Latitude: " + location[0] + "\n"
+                            + "Longitude: " + location[1] + "\n"
+                            + "Accuracy: " + location[2] + "\n"
+                            + "Recorded at: " + location[3] + "\n\n"
+                            + "This is the latest stored location, "
+                            + "not live GPS tracking.",
                     "Agent Location",
                     JOptionPane.INFORMATION_MESSAGE
             );
 
-        } catch (NumberFormatException ex) {
+        } catch (IllegalArgumentException ex) {
             JOptionPane.showMessageDialog(
                     this,
-                    "The selected agent ID is invalid.",
+                    "The stored location data is invalid.\n"
+                            + ex.getMessage(),
                     "Location Error",
                     JOptionPane.ERROR_MESSAGE
             );
@@ -531,67 +551,132 @@ public class DeliveryAgentManagementPanel extends JPanel {
         button.setPreferredSize(new Dimension(width, 38));
     }
 
-    private static class MapPanel extends JPanel {
 
-        private static final long serialVersionUID = 1L;
+	private static class MapPanel extends JPanel {
+	
+	    private static final long serialVersionUID = 1L;
+	
+	    private final JMapViewer mapViewer = new JMapViewer();
+	
+	    private JLabel infoLabel;
+	
+	    private long selectedAgentId = -1;
+	    private String selectedAgentName = "Select an agent";
+	
+	    MapPanel() {
+	        setLayout(new BorderLayout(0, 8));
+	        setPreferredSize(new Dimension(340, 380));
+	        setBackground(AppTheme.SURFACE);
+	        setBorder(BorderFactory.createLineBorder(AppTheme.BORDER));
+	
+	        infoLabel = new JLabel(
+	                "<html><b>Delivery Agent Map</b><br>"
+	                + "Select an agent to view their last location.</html>"
+	        );
+	        infoLabel.setBorder(
+	                BorderFactory.createEmptyBorder(8, 10, 8, 10)
+	        );
+	        infoLabel.setFont(FontManager.regular(12));
+	        infoLabel.setForeground(AppTheme.TEXT_PRIMARY);
+	
+	        mapViewer.setTileSource(new OsmTileSource.Mapnik());
+	        mapViewer.setZoomControlsVisible(true);
+	        mapViewer.setScrollWrapEnabled(false);
+	
+	        // Initial map view: Faridabad, Haryana.
+	        // This is only a starting view, not an agent's location.
+	        mapViewer.setDisplayPosition(
+	                new Coordinate(28.4089, 77.3178), 12
+	        );
+	
+	        add(infoLabel, BorderLayout.NORTH);
+	        add(mapViewer, BorderLayout.CENTER);
+	    }
+	
+	    void setAgent(long agentId, String name) {
+	        selectedAgentId = agentId;
+	        selectedAgentName = name;
+	
+	        clearLocation();
+	
+	        infoLabel.setText(
+	                "<html><b>" + escapeHtml(name) + "</b><br>"
+	                + "Agent ID: " + agentId + "<br>"
+	                + "Click View Location to load recorded coordinates."
+	                + "</html>"
+	        );
+	    }
+	
+	    void showLocation(
+	            long agentId,
+	            String name,
+	            double latitude,
+	            double longitude
+	    ) {
+	        selectedAgentId = agentId;
+	        selectedAgentName = name;
+	
+	        mapViewer.removeAllMapMarkers();
+	
+	        Coordinate coordinate = new Coordinate(latitude, longitude);
+	        MapMarkerDot marker = new MapMarkerDot(
+	                name, coordinate
+	        );
+	
+	        marker.setBackColor(new Color(46, 125, 50));
+	        marker.setColor(Color.WHITE);
+	
+	        mapViewer.addMapMarker(marker);
+	        mapViewer.setDisplayPosition(coordinate, 16);
+	
+	        infoLabel.setText(
+	                "<html><b>" + escapeHtml(name) + "</b><br>"
+	                + "Agent ID: " + agentId + "<br>"
+	                + "Latitude: " + latitude + "<br>"
+	                + "Longitude: " + longitude + "</html>"
+	        );
+	    }
+	
+	    void clearLocation() {
+	        mapViewer.removeAllMapMarkers();
+	
+	        if (selectedAgentId > 0) {
+	            infoLabel.setText(
+	                    "<html><b>" + escapeHtml(selectedAgentName)
+	                    + "</b><br>Agent ID: " + selectedAgentId
+	                    + "<br>No location loaded.</html>"
+	            );
+	        }
+	
+	        mapViewer.repaint();
+	    }
+	
+	    void clearAgent() {
+	        selectedAgentId = -1;
+	        selectedAgentName = "Select an agent";
+	
+	        mapViewer.removeAllMapMarkers();
+	
+	        infoLabel.setText(
+	                "<html><b>Delivery Agent Map</b><br>"
+	                + "Select an agent to view their last location."
+	                + "</html>"
+	        );
+	
+	        mapViewer.repaint();
+	    }
+	
+	    private static String escapeHtml(String text) {
+	        if (text == null) {
+	            return "";
+	        }
+	
+	        return text.replace("&", "&amp;")
+	                   .replace("<", "&lt;")
+	                   .replace(">", "&gt;")
+	                   .replace("\"", "&quot;")
+	                   .replace("'", "&#39;");
+	    }
+	}
 
-        private String agentId = "";
-        private String agentName = "Select an agent";
-
-        MapPanel() {
-            setPreferredSize(new Dimension(300, 360));
-            setBackground(AppTheme.SURFACE);
-            setBorder(BorderFactory.createLineBorder(AppTheme.BORDER));
-        }
-
-        void setAgent(String id, String name) {
-            agentId = id;
-            agentName = name;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(java.awt.Graphics g) {
-            super.paintComponent(g);
-
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(
-                    RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int width = getWidth();
-            int height = getHeight();
-
-            g2.setColor(AppTheme.CARD);
-            g2.fillRect(0, 0, width, height);
-
-            g2.setColor(AppTheme.BORDER);
-            g2.setStroke(new BasicStroke(15));
-            g2.drawLine(15, height - 60, width - 15, 70);
-            g2.drawLine(25, 80, width - 25, height - 40);
-
-            g2.setColor(AppTheme.TEXT_PRIMARY);
-            g2.setFont(FontManager.semiBold(14));
-            g2.drawString("Location Preview", 15, 28);
-
-            int x = width / 2;
-            int y = height / 2;
-
-            g2.setColor(AppTheme.PRIMARY);
-            g2.fillOval(x - 9, y - 9, 18, 18);
-
-            g2.setColor(AppTheme.TEXT_PRIMARY);
-            g2.setFont(FontManager.semiBold(11));
-            g2.drawString(agentName, Math.min(x + 12, width - 120), y + 5);
-
-            g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
-            g2.drawString(
-                    agentId.isEmpty()
-                            ? "Illustrative map — not live GPS"
-                            : "Agent " + agentId + " — illustrative map",
-                    12, height - 15);
-
-            g2.dispose();
-        }
-    }
 }
