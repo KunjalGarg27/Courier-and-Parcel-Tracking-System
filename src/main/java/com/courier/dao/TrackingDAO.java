@@ -17,23 +17,12 @@ public class TrackingDAO {
             throws SQLException {
 
         String sql = """
-                SELECT
-                    s.shipment_id,
-                    s.tracking_number,
-                    s.customer_id,
-                    s.sender_name,
-                    s.sender_phone,
-                    s.receiver_name,
-                    s.receiver_phone,
-                    s.pickup_address_id,
-                    s.delivery_address_id,
-                    s.service_type_id,
-                    s.package_description,
-                    s.weight_kg,
-                    s.created_at,
-                    s.updated_at,
-                    s.expected_delivery_at,
-                    s.delivered_at
+                SELECT s.shipment_id, s.tracking_number, s.customer_id,
+                       s.sender_name, s.sender_phone, s.receiver_name,
+                       s.receiver_phone, s.pickup_address_id,
+                       s.delivery_address_id, s.service_type_id,
+                       s.package_description, s.weight_kg, s.created_at,
+                       s.updated_at, s.expected_delivery_at, s.delivered_at
                 FROM shipments s
                 WHERE s.tracking_number = ?
                 """;
@@ -41,7 +30,7 @@ public class TrackingDAO {
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setString(1, trackingNumber);
+            ps.setString(1, trackingNumber.trim().toUpperCase());
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
@@ -49,7 +38,6 @@ public class TrackingDAO {
                 }
 
                 Shipment shipment = new Shipment();
-
                 shipment.setShipmentId(rs.getLong("shipment_id"));
                 shipment.setTrackingNumber(rs.getString("tracking_number"));
                 shipment.setCustomerId(rs.getLong("customer_id"));
@@ -57,31 +45,24 @@ public class TrackingDAO {
                 shipment.setSenderPhone(rs.getString("sender_phone"));
                 shipment.setReceiverName(rs.getString("receiver_name"));
                 shipment.setReceiverPhone(rs.getString("receiver_phone"));
-                shipment.setPickupAddressId(
-                        rs.getLong("pickup_address_id"));
-                shipment.setDeliveryAddressId(
-                        rs.getLong("delivery_address_id"));
+                shipment.setPickupAddressId(rs.getLong("pickup_address_id"));
+                shipment.setDeliveryAddressId(rs.getLong("delivery_address_id"));
                 shipment.setServiceTypeId(rs.getInt("service_type_id"));
-                shipment.setPackageDescription(
-                        rs.getString("package_description"));
+                shipment.setPackageDescription(rs.getString("package_description"));
                 shipment.setWeightKg(rs.getBigDecimal("weight_kg"));
 
                 if (rs.getTimestamp("created_at") != null) {
                     shipment.setCreatedAt(
                             rs.getTimestamp("created_at").toLocalDateTime());
                 }
-
                 if (rs.getTimestamp("updated_at") != null) {
                     shipment.setUpdatedAt(
                             rs.getTimestamp("updated_at").toLocalDateTime());
                 }
-
                 if (rs.getTimestamp("expected_delivery_at") != null) {
                     shipment.setExpectedDeliveryAt(
-                            rs.getTimestamp("expected_delivery_at")
-                                    .toLocalDateTime());
+                            rs.getTimestamp("expected_delivery_at").toLocalDateTime());
                 }
-
                 if (rs.getTimestamp("delivered_at") != null) {
                     shipment.setDeliveredAt(
                             rs.getTimestamp("delivered_at").toLocalDateTime());
@@ -98,11 +79,8 @@ public class TrackingDAO {
         List<String> history = new ArrayList<>();
 
         String sql = """
-                SELECT
-                    sts.status_name,
-                    ste.location_description,
-                    ste.notes,
-                    ste.event_time
+                SELECT sts.status_name, ste.location_description,
+                       ste.notes, ste.event_time
                 FROM shipment_tracking_events ste
                 JOIN shipment_statuses sts
                     ON ste.status_id = sts.status_id
@@ -118,23 +96,23 @@ public class TrackingDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String status = rs.getString("status_name");
-                    String location =
-                            rs.getString("location_description");
+                    String location = rs.getString("location_description");
                     String notes = rs.getString("notes");
-                    String eventTime = rs.getTimestamp("event_time")
-                            .toLocalDateTime().toString();
+                    java.sql.Timestamp timestamp = rs.getTimestamp("event_time");
 
-                    String entry = eventTime + " | " + status;
+                    StringBuilder entry = new StringBuilder();
+                    entry.append(timestamp == null ? "Unknown time"
+                            : timestamp.toLocalDateTime());
+                    entry.append(" | ").append(status);
 
                     if (location != null && !location.isBlank()) {
-                        entry += " | " + location;
+                        entry.append(" | ").append(location);
                     }
-
                     if (notes != null && !notes.isBlank()) {
-                        entry += " | " + notes;
+                        entry.append(" | ").append(notes);
                     }
 
-                    history.add(entry);
+                    history.add(entry.toString());
                 }
             }
         }
@@ -161,6 +139,64 @@ public class TrackingDAO {
 
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getString("status_name") : null;
+            }
+        }
+    }
+
+    public String findLatestLocation(long shipmentId) throws SQLException {
+
+        String sql = """
+                SELECT location_description, latitude, longitude, event_time
+                FROM shipment_tracking_events
+                WHERE shipment_id = ?
+                  AND (
+                      location_description IS NOT NULL
+                      OR (latitude IS NOT NULL AND longitude IS NOT NULL)
+                  )
+                ORDER BY event_time DESC, event_id DESC
+                LIMIT 1
+                """;
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setLong(1, shipmentId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return "No location has been recorded for this shipment yet.";
+                }
+
+                String description = rs.getString("location_description");
+                java.math.BigDecimal latitude = rs.getBigDecimal("latitude");
+                java.math.BigDecimal longitude = rs.getBigDecimal("longitude");
+                java.sql.Timestamp timestamp = rs.getTimestamp("event_time");
+
+                StringBuilder result = new StringBuilder();
+
+                if (description != null && !description.isBlank()) {
+                    result.append(description);
+                }
+
+                if (latitude != null && longitude != null) {
+                    if (!result.isEmpty()) {
+                        result.append("\n");
+                    }
+                    result.append("Coordinates: ")
+                          .append(latitude).append(", ").append(longitude);
+                }
+
+                if (timestamp != null) {
+                    if (!result.isEmpty()) {
+                        result.append("\n");
+                    }
+                    result.append("Recorded at: ")
+                          .append(timestamp.toLocalDateTime());
+                }
+
+                return result.isEmpty()
+                        ? "No location details available."
+                        : result.toString();
             }
         }
     }

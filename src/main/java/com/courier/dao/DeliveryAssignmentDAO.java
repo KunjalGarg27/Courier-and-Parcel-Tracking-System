@@ -9,6 +9,9 @@ import java.sql.Statement;
 
 public class DeliveryAssignmentDAO {
 
+    private final ShipmentTrackingDAO trackingDAO =
+            new ShipmentTrackingDAO();
+
     public long assignShipment(
             Connection con,
             long shipmentId,
@@ -16,31 +19,71 @@ public class DeliveryAssignmentDAO {
             long assignedByUserId
     ) throws SQLException {
 
-        // Find the ASSIGNED status ID.
-        String statusSql = """
+        // 1. Resolve the ASSIGNED assignment status.
+        int assignedStatusId = findAssignmentStatusId(con, "ASSIGNED");
+
+        // 2. Create the delivery assignment.
+        long assignmentId = insertAssignment(
+                con,
+                shipmentId,
+                agentId,
+                assignedStatusId,
+                assignedByUserId
+        );
+
+        // 3. Record the shipment's ASSIGNED status in its tracking history.
+        trackingDAO.createTrackingEvent(
+                con,
+                shipmentId,
+                "ASSIGNED",
+                null,
+                "Shipment assigned to delivery agent. Assignment ID: "
+                        + assignmentId,
+                assignedByUserId
+        );
+
+        // 4. Update the shipment's modification timestamp.
+        updateShipmentTimestamp(con, shipmentId);
+
+        // The calling service commits the transaction.
+        return assignmentId;
+    }
+
+    private int findAssignmentStatusId(
+            Connection con,
+            String statusName
+    ) throws SQLException {
+
+        String sql = """
                 SELECT assignment_status_id
                 FROM assignment_statuses
                 WHERE status_name = ?
                 """;
 
-        int assignedStatusId;
-
-        try (PreparedStatement ps = con.prepareStatement(statusSql)) {
-            ps.setString(1, "ASSIGNED");
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, statusName);
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     throw new SQLException(
-                            "ASSIGNED assignment status not found."
+                            statusName + " assignment status not found."
                     );
                 }
 
-                assignedStatusId = rs.getInt("assignment_status_id");
+                return rs.getInt("assignment_status_id");
             }
         }
+    }
 
-        // Insert the assignment.
-        String insertSql = """
+    private long insertAssignment(
+            Connection con,
+            long shipmentId,
+            long agentId,
+            int assignmentStatusId,
+            long assignedByUserId
+    ) throws SQLException {
+
+        String sql = """
                 INSERT INTO delivery_assignments (
                     shipment_id,
                     agent_id,
@@ -51,11 +94,11 @@ public class DeliveryAssignmentDAO {
                 """;
 
         try (PreparedStatement ps = con.prepareStatement(
-                insertSql, Statement.RETURN_GENERATED_KEYS)) {
+                sql, Statement.RETURN_GENERATED_KEYS)) {
 
             ps.setLong(1, shipmentId);
             ps.setLong(2, agentId);
-            ps.setInt(3, assignedStatusId);
+            ps.setInt(3, assignmentStatusId);
             ps.setLong(4, assignedByUserId);
 
             if (ps.executeUpdate() != 1) {
@@ -69,10 +112,32 @@ public class DeliveryAssignmentDAO {
                     return keys.getLong(1);
                 }
             }
+        }
 
-            throw new SQLException(
-                    "Assignment created but no assignment ID was returned."
-            );
+        throw new SQLException(
+                "Assignment created but no assignment ID was returned."
+        );
+    }
+
+    private void updateShipmentTimestamp(
+            Connection con,
+            long shipmentId
+    ) throws SQLException {
+
+        String sql = """
+                UPDATE shipments
+                SET updated_at = CURRENT_TIMESTAMP
+                WHERE shipment_id = ?
+                """;
+
+        try (PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setLong(1, shipmentId);
+
+            if (ps.executeUpdate() != 1) {
+                throw new SQLException(
+                        "Could not update shipment timestamp."
+                );
+            }
         }
     }
 }

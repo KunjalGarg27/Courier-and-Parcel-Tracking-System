@@ -16,36 +16,32 @@ public class TrackingService {
 
         if (trackingNumber == null || trackingNumber.isBlank()) {
             throw new IllegalArgumentException(
-                    "Tracking number cannot be empty."
-            );
+                    "Tracking number cannot be empty.");
         }
 
         return trackingDAO.findShipmentByTrackingNumber(
-                trackingNumber.trim().toUpperCase()
-        );
+                trackingNumber.trim().toUpperCase());
     }
 
-    public String getCurrentStatus(long shipmentId)
-            throws SQLException {
-
-        if (shipmentId <= 0) {
-            throw new IllegalArgumentException(
-                    "Invalid shipment ID."
-            );
-        }
-
+    public String getCurrentStatus(long shipmentId) throws SQLException {
+        validateShipmentId(shipmentId);
         return trackingDAO.findCurrentStatus(shipmentId);
     }
 
     public List<String> getTrackingHistory(long shipmentId)
             throws SQLException {
-
-        if (shipmentId <= 0) {
-            throw new IllegalArgumentException(
-                    "Invalid shipment ID."
-            );
-        }
-
+        validateShipmentId(shipmentId);
         return trackingDAO.findTrackingHistory(shipmentId);
+    }
+
+    public String getLatestLocation(long shipmentId) throws SQLException {
+        validateShipmentId(shipmentId);
+        return trackingDAO.findLatestLocation(shipmentId);
+    }
+
+    private void validateShipmentId(long shipmentId) {
+        if (shipmentId <= 0) {
+            throw new IllegalArgumentException("Invalid shipment ID.");
+        }
     }
 }

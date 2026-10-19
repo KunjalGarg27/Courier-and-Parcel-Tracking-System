@@ -9,24 +9,22 @@ import com.courier.service.TrackingService;
 
 public class TrackingController {
 
-    private final TrackingService trackingService =
-            new TrackingService();
+    private final TrackingService trackingService = new TrackingService();
 
-    public Shipment trackShipment(String trackingNumber)
-            throws SQLException {
-
+    public Shipment trackShipment(String trackingNumber) throws SQLException {
         return trackingService.trackShipment(trackingNumber);
     }
 
-    public String getCurrentStatus(long shipmentId)
-            throws SQLException {
-
+    public String getCurrentStatus(long shipmentId) throws SQLException {
         return trackingService.getCurrentStatus(shipmentId);
     }
 
     public List<String> getTrackingHistory(long shipmentId)
             throws SQLException {
-
         return trackingService.getTrackingHistory(shipmentId);
+    }
+
+    public String getLatestLocation(long shipmentId) throws SQLException {
+        return trackingService.getLatestLocation(shipmentId);
     }
 }
