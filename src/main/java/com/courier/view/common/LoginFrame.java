@@ -1,3 +1,4 @@
+
 package com.courier.view.common;
 
 import java.awt.GridLayout;
@@ -14,20 +15,31 @@ import javax.swing.JTextField;
 
 import com.courier.controller.UserController;
 import com.courier.model.User;
+import com.courier.view.admin.AdminFrame;
 import com.courier.view.customer.CustomerFrame;
+import com.courier.view.agent.AgentFrame;
 
 public class LoginFrame extends JFrame {
 
-    // Labels shown on screen and the matching role_name values in the database.
-    private static final String[] ROLE_LABELS =
-            {"Customer", "Admin", "Delivery Agent"};
-    private static final String[] ROLE_NAMES =
-            {"CUSTOMER", "ADMIN", "DELIVERY_AGENT"};
+    private static final long serialVersionUID = 1L;
+
+    private static final String[] ROLE_LABELS = {
+        "Customer", "Admin", "Delivery Agent"
+    };
+
+    private static final String[] ROLE_NAMES = {
+        "CUSTOMER", "ADMIN", "DELIVERY_AGENT"
+    };
 
     private final UserController userController = new UserController();
-    private final JComboBox<String> roleBox = new JComboBox<>(ROLE_LABELS);
+
+    private final JComboBox<String> roleBox =
+            new JComboBox<>(ROLE_LABELS);
+
     private final JTextField emailField = new JTextField(20);
-    private final JPasswordField passwordField = new JPasswordField(20);
+
+    private final JPasswordField passwordField =
+            new JPasswordField(20);
 
     public LoginFrame() {
         setTitle("KahinBhi - Login");
@@ -47,10 +59,12 @@ public class LoginFrame extends JFrame {
         form.add(passwordField);
 
         JButton loginButton = new JButton("Login");
+
         form.add(new JLabel());
         form.add(loginButton);
 
         loginButton.addActionListener(e -> login());
+
         getRootPane().setDefaultButton(loginButton);
 
         add(form);
@@ -61,12 +75,22 @@ public class LoginFrame extends JFrame {
         String password = new String(passwordField.getPassword());
         String roleName = ROLE_NAMES[roleBox.getSelectedIndex()];
 
+        if (email.isBlank() || password.isBlank()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Please enter both email and password.",
+                    "Missing Information",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
         try {
-            User user = userController.loginAsRole(email, password, roleName);
+            User user = userController.loginAsRole(
+                    email, password, roleName
+            );
 
             if (user == null) {
-                // Same message for every failure, so it does not reveal
-                // whether the email exists or which part was wrong.
                 JOptionPane.showMessageDialog(
                         this,
                         "Invalid email, password or role, "
@@ -81,40 +105,49 @@ public class LoginFrame extends JFrame {
 
         } catch (SQLException ex) {
             ex.printStackTrace();
+
             JOptionPane.showMessageDialog(
                     this,
                     "Login failed because of a database error. "
-                            + "Check your database connection.",
+                            + "Please check your database connection.",
                     "Login Error",
                     JOptionPane.ERROR_MESSAGE
             );
         }
     }
 
-    private void openDashboard(User user, String roleName) {
-        switch (roleName) {
 
-            case "CUSTOMER" -> {
-                new CustomerFrame(user).setVisible(true);
-                dispose();
-            }
+	private void openDashboard(User user, String roleName) {
+	    switch (roleName) {
+	
+	        case "CUSTOMER" -> {
+	            CustomerFrame frame = new CustomerFrame(user);
+	            frame.setVisible(true);
+	            dispose();
+	        }
+	
+	        case "ADMIN" -> {
+	            AdminFrame frame = new AdminFrame(user.getFullName());
+	            frame.setVisible(true);
+	            dispose();
+	        }
+	
+	        case "DELIVERY_AGENT" -> {
+	            AgentFrame frame = new AgentFrame(user.getFullName());
+	            frame.setVisible(true);
+	            dispose();
+	        }
+	
+	        default -> showNotConnected(roleName);
+	    }
+	}
 
-            // TODO (Kunjal): open the Admin dashboard here, e.g.
-            //   new AdminFrame(user).setVisible(true); dispose();
-            case "ADMIN" -> showNotConnected("Admin");
-
-            // TODO (Lovedeep): open the Agent dashboard here.
-            case "DELIVERY_AGENT" -> showNotConnected("Delivery Agent");
-
-            default -> showNotConnected(roleName);
-        }
-    }
 
     private void showNotConnected(String roleLabel) {
         JOptionPane.showMessageDialog(
                 this,
                 "Login succeeded, but the " + roleLabel
-                        + " dashboard is not connected to this screen yet.",
+                        + " dashboard is not connected yet.",
                 "Not Available Yet",
                 JOptionPane.INFORMATION_MESSAGE
         );

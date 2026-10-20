@@ -1,530 +1,511 @@
+
 package com.courier.view.admin;
 
-import java.awt.BasicStroke;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.GridLayout;
-import java.awt.RenderingHints;
-
-import javax.swing.BorderFactory;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-
+import com.courier.controller.ReportsController;
+import com.courier.dao.ReportsDAO;
 import com.courier.util.AppTheme;
 import com.courier.util.FontManager;
-import com.courier.view.common.components.AppCard;
-import com.courier.view.common.components.StatCard;
+
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.io.File;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 public class ReportsPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private JComboBox<String> reportType;
-    private ReportChartPanel chartPanel;
+    private static final Color GREEN = new Color(83, 108, 43);
+    private static final Color BORDER = new Color(225, 219, 208);
+    private static final Color MUTED = new Color(112, 119, 130);
+    private static final Color WHITE = Color.WHITE;
+
+    private final ReportsController controller = new ReportsController();
+
+    private final JComboBox<String> reportSelector = new JComboBox<>(
+        new String[] {
+            "Monthly Shipments",
+            "Delivery Performance",
+            "Shipment Status Summary",
+            "Agent Performance"
+        }
+    );
+
+    private final JButton generateButton = new JButton("Generate Report");
+    private final JButton exportButton = new JButton("Export CSV");
+
+    private final JLabel totalValue = new JLabel("—");
+    private final JLabel deliveredValue = new JLabel("—");
+    private final JLabel transitValue = new JLabel("—");
+    private final JLabel pendingValue = new JLabel("—");
+    private final JLabel message = new JLabel("Ready to generate reports.");
+
+    private final JPanel chartPanel = new JPanel(new BorderLayout());
+    private final DefaultTableModel tableModel =
+        new DefaultTableModel();
+
+    private final JTable reportTable = new JTable(tableModel);
+
+    private List<ReportsDAO.ReportRow> currentRows = List.of();
+    private String[] currentColumns = new String[0];
 
     public ReportsPanel() {
-
-        setLayout(new BorderLayout(20, 20));
+        setLayout(new BorderLayout(0, 18));
         setBackground(AppTheme.BACKGROUND);
+        setBorder(new EmptyBorder(25, 30, 25, 30));
 
-        setBorder(
-            BorderFactory.createEmptyBorder(
-                25, 30, 25, 30
-            )
+        add(createHeader(), BorderLayout.NORTH);
+        JScrollPane pageScroll = new JScrollPane(createMain());
+        pageScroll.setBorder(null);
+        pageScroll.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
         );
+        pageScroll.getVerticalScrollBar().setUnitIncrement(16);
+        pageScroll.getViewport().setBackground(AppTheme.BACKGROUND);
 
-        // ==========================================
-        // TITLE
-        // ==========================================
+        add(pageScroll, BorderLayout.CENTER);
 
-        JPanel titlePanel =
-            new JPanel(new GridLayout(2, 1, 0, 3));
+        generateButton.addActionListener(e -> generateReport());
+        exportButton.addActionListener(e -> exportCsv());
+        reportSelector.addActionListener(e -> {
+            // The selected report changes only when Generate is clicked.
+        });
 
-        titlePanel.setOpaque(false);
+        loadDashboard();
+    }
 
-        JLabel title =
-            new JLabel("Reports & Analytics");
+    private JPanel createHeader() {
+        JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
 
-        title.setFont(
-            FontManager.semiBold(26)
+        JLabel title = new JLabel("Reports & Analytics");
+        title.setFont(FontManager.semiBold(27));
+        title.setForeground(AppTheme.TEXT_PRIMARY);
+
+        JLabel subtitle = new JLabel(
+            "Monitor shipment and delivery performance"
         );
+        subtitle.setFont(FontManager.regular(13));
+        subtitle.setForeground(AppTheme.TEXT_SECONDARY);
 
-        title.setForeground(
-            AppTheme.TEXT_PRIMARY
-        );
+        header.add(title);
+        header.add(Box.createVerticalStrut(6));
+        header.add(subtitle);
 
-        JLabel subtitle =
-            new JLabel(
-                "Monitor shipment and delivery performance"
-            );
+        return header;
+    }
 
-        subtitle.setFont(
-            FontManager.regular(13)
-        );
+    private JPanel createMain() {
+        JPanel main = new JPanel();
+        main.setOpaque(false);
+        main.setLayout(new BoxLayout(main, BoxLayout.Y_AXIS));
 
-        subtitle.setForeground(
-            AppTheme.TEXT_SECONDARY
-        );
+        JPanel controls = new JPanel(new FlowLayout(
+            FlowLayout.LEFT, 12, 22));
+        controls.setBackground(WHITE);
+        controls.setBorder(new LineBorder(BORDER, 1));
+        controls.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
 
-        titlePanel.add(title);
-        titlePanel.add(subtitle);
+        JLabel reportLabel = new JLabel("Report:");
+        reportLabel.setFont(FontManager.semiBold(13));
 
-        add(titlePanel, BorderLayout.NORTH);
+        reportSelector.setFont(FontManager.regular(13));
+        reportSelector.setPreferredSize(new Dimension(220, 40));
 
-        // ==========================================
-        // MAIN CONTENT
-        // ==========================================
+        styleButton(generateButton, GREEN);
+        styleButton(exportButton, WHITE);
+        exportButton.setForeground(AppTheme.TEXT_PRIMARY);
+        exportButton.setBorder(new LineBorder(BORDER, 1));
 
-        JPanel mainPanel =
-            new JPanel(new BorderLayout(15, 15));
+        controls.add(reportLabel);
+        controls.add(reportSelector);
+        controls.add(generateButton);
+        controls.add(exportButton);
 
-        mainPanel.setOpaque(false);
+        message.setFont(FontManager.regular(12));
+        message.setForeground(MUTED);
+        controls.add(message);
 
-        // ==========================================
-        // REPORT FILTER
-        // ==========================================
+        JPanel cards = new JPanel(new GridLayout(1, 4, 18, 0));
+        cards.setOpaque(false);
+        cards.setPreferredSize(new Dimension(900, 135));
+        cards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 145));
 
-        AppCard filterCard = new AppCard();
+        cards.add(createMetricCard("Total Shipments", totalValue));
+        cards.add(createMetricCard("Delivered", deliveredValue));
+        cards.add(createMetricCard("In Transit", transitValue));
+        cards.add(createMetricCard("Pending", pendingValue));
 
-        filterCard.setLayout(
-            new FlowLayout(
-                FlowLayout.LEFT,
-                12,
-                12
-            )
-        );
+        JPanel chartCard = new JPanel(new BorderLayout(0, 12));
+        chartCard.setBackground(WHITE);
+        chartCard.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1),
+            new EmptyBorder(18, 22, 18, 22)
+        ));
+        chartCard.setPreferredSize(new Dimension(900, 300));
+        chartCard.setMinimumSize(new Dimension(500, 260));
+        chartCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
 
-        JLabel reportLabel =
-            new JLabel("Report:");
+        JLabel chartTitle = new JLabel("Monthly Shipment Performance");
+        chartTitle.setFont(FontManager.semiBold(17));
+        chartTitle.setForeground(AppTheme.TEXT_PRIMARY);
 
-        reportLabel.setFont(
-            FontManager.semiBold(13)
-        );
+        chartPanel.setBackground(WHITE);
+        chartCard.add(chartTitle, BorderLayout.NORTH);
+        chartCard.add(chartPanel, BorderLayout.CENTER);
 
-        reportLabel.setForeground(
-            AppTheme.TEXT_PRIMARY
-        );
+        JPanel tableCard = new JPanel(new BorderLayout(0, 12));
+        tableCard.setBackground(WHITE);
+        tableCard.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1),
+            new EmptyBorder(18, 22, 18, 22)
+        ));
 
-        reportType =
-            new JComboBox<>(
-                new String[] {
-                    "Monthly Shipments",
-                    "Delivery Performance",
-                    "Shipment Status"
+        JLabel tableTitle = new JLabel("Generated Report Data");
+        tableTitle.setFont(FontManager.semiBold(17));
+
+        reportTable.setFont(FontManager.regular(12));
+        reportTable.setRowHeight(28);
+        reportTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        reportTable.setFillsViewportHeight(true);
+
+        JScrollPane tableScroll = new JScrollPane(reportTable);
+        tableScroll.setPreferredSize(new Dimension(900, 220));
+        tableScroll.setMinimumSize(new Dimension(400, 150));
+        tableScroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        tableCard.add(tableScroll, BorderLayout.CENTER);
+        tableCard.setPreferredSize(new Dimension(900, 300));
+        tableCard.setMinimumSize(new Dimension(500, 240));
+        tableCard.add(new JScrollPane(reportTable), BorderLayout.CENTER);
+
+        main.add(controls);
+        main.add(Box.createVerticalStrut(18));
+        main.add(cards);
+        main.add(Box.createVerticalStrut(18));
+        main.add(chartCard);
+        main.add(Box.createVerticalStrut(18));
+        main.add(tableCard);
+
+        return main;
+    }
+
+    private JPanel createMetricCard(String title, JLabel value) {
+        JPanel card = new JPanel(new BorderLayout(0, 20));
+        card.setBackground(WHITE);
+        card.setBorder(BorderFactory.createCompoundBorder(
+            new LineBorder(BORDER, 1),
+            new EmptyBorder(20, 24, 20, 24)
+        ));
+
+        JLabel label = new JLabel(title);
+        label.setFont(FontManager.regular(13));
+        label.setForeground(MUTED);
+
+        value.setFont(FontManager.semiBold(30));
+        value.setForeground(AppTheme.TEXT_PRIMARY);
+
+        card.add(label, BorderLayout.NORTH);
+        card.add(value, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    private void loadDashboard() {
+        generateButton.setEnabled(false);
+        message.setText("Loading live statistics...");
+
+        new SwingWorker<DashboardData, Void>() {
+            @Override
+            protected DashboardData doInBackground() throws Exception {
+                return new DashboardData(
+                    controller.getSummary(),
+                    controller.getMonthlyShipments()
+                );
+            }
+
+            @Override
+            protected void done() {
+                generateButton.setEnabled(true);
+
+                try {
+                    DashboardData data = get();
+
+                    totalValue.setText(
+                        String.valueOf(data.summary.total()));
+                    deliveredValue.setText(
+                        String.valueOf(data.summary.delivered()));
+                    transitValue.setText(
+                        String.valueOf(data.summary.inTransit()));
+                    pendingValue.setText(
+                        String.valueOf(data.summary.pending()));
+
+                    drawChart(data.months);
+                    message.setText("Live statistics loaded.");
+
+                } catch (Exception ex) {
+                    message.setText("Unable to load statistics.");
+                    showError(ex);
                 }
-            );
+            }
+        }.execute();
+    }
 
-        reportType.setFont(
-            FontManager.regular(13)
-        );
+    private void generateReport() {
+        String selected = (String) reportSelector.getSelectedItem();
 
-        reportType.setPreferredSize(
-            new Dimension(190, 38)
-        );
+        generateButton.setEnabled(false);
+        message.setText("Generating " + selected + "...");
 
-        JButton generateButton =
-            new JButton("Generate Report");
+        new SwingWorker<List<ReportsDAO.ReportRow>, Void>() {
+            @Override
+            protected List<ReportsDAO.ReportRow> doInBackground()
+                    throws Exception {
+                return controller.generateReport(selected);
+            }
 
-        stylePrimaryButton(
-            generateButton,
-            145
-        );
+            @Override
+            protected void done() {
+                generateButton.setEnabled(true);
 
-        JButton exportButton =
-            new JButton("Export");
+                try {
+                    currentRows = get();
+                    populateTable(selected, currentRows);
+                    message.setText(
+                        currentRows.size() + " report rows generated.");
 
-        styleSecondaryButton(
-            exportButton,
-            90
-        );
+                    if ("Monthly Shipments".equals(selected)) {
+                        loadDashboard();
+                    }
 
-        filterCard.add(reportLabel);
-        filterCard.add(reportType);
-        filterCard.add(generateButton);
-        filterCard.add(exportButton);
+                } catch (Exception ex) {
+                    message.setText("Report generation failed.");
+                    showError(ex);
+                }
+            }
+        }.execute();
+    }
 
-        mainPanel.add(
-            filterCard,
-            BorderLayout.NORTH
-        );
+    private void populateTable(
+            String reportType,
+            List<ReportsDAO.ReportRow> rows) {
 
-        // ==========================================
-        // STATISTICS
-        // ==========================================
+        switch (reportType) {
+            case "Delivery Performance" ->
+                currentColumns = new String[] {
+                    "Tracking Number", "Current Status", "Booked At",
+                    "Delivered At", "Performance"
+                };
+            case "Shipment Status Summary" ->
+                currentColumns = new String[] {
+                    "Status", "Shipment Count"
+                };
+            case "Agent Performance" ->
+                currentColumns = new String[] {
+                    "Agent", "Assigned Shipments", "Completed"
+                };
+            default ->
+                currentColumns = new String[] {
+                    "Month", "Shipments"
+                };
+        }
 
-        JPanel statsPanel =
-            new JPanel(
-                new GridLayout(1, 4, 15, 0)
-            );
+        tableModel.setRowCount(0);
+        tableModel.setColumnCount(0);
 
-        statsPanel.setOpaque(false);
+        for (String column : currentColumns) {
+            tableModel.addColumn(column);
+        }
 
-        statsPanel.add(
-            new StatCard(
-                "Total Shipments",
-                "1,248"
-            )
-        );
+        for (ReportsDAO.ReportRow row : rows) {
+            tableModel.addRow(row.values());
+        }
 
-        statsPanel.add(
-            new StatCard(
-                "Delivered",
-                "850"
-            )
-        );
+        for (int i = 0; i < reportTable.getColumnCount(); i++) {
+            reportTable.getColumnModel().getColumn(i)
+                .setPreferredWidth(170);
+        }
+    }
 
-        statsPanel.add(
-            new StatCard(
-                "In Transit",
-                "342"
-            )
-        );
+    private void drawChart(List<ReportsDAO.MonthCount> months) {
+        chartPanel.removeAll();
 
-        statsPanel.add(
-            new StatCard(
-                "Pending",
-                "56"
-            )
-        );
+        JPanel plot = new JPanel() {
+            private static final long serialVersionUID = 1L;
 
-        mainPanel.add(
-            statsPanel,
-            BorderLayout.CENTER
-        );
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
 
-        // ==========================================
-        // CHART
-        // ==========================================
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+                );
 
-        AppCard chartCard =
-            new AppCard();
+                int left = 45;
+                int right = 15;
+                int top = 12;
+                int bottom = 30;
+                int width = getWidth() - left - right;
+                int height = getHeight() - top - bottom;
 
-        chartCard.setLayout(
-            new BorderLayout()
-        );
+                if (months == null || months.isEmpty()
+                        || width <= 0 || height <= 0) {
+                    g.dispose();
+                    return;
+                }
 
-        JLabel chartTitle =
-            new JLabel(
-                "Monthly Shipment Performance"
-            );
+                long max = months.stream()
+                    .mapToLong(ReportsDAO.MonthCount::count)
+                    .max().orElse(0);
 
-        chartTitle.setFont(
-            FontManager.semiBold(16)
-        );
+                max = Math.max(1, max);
 
-        chartTitle.setForeground(
-            AppTheme.TEXT_PRIMARY
-        );
+                g.setColor(BORDER);
+                for (int i = 0; i <= 4; i++) {
+                    int y = top + height - (height * i / 4);
+                    g.drawLine(left, y, left + width, y);
+                }
 
-        chartTitle.setBorder(
-            BorderFactory.createEmptyBorder(
-                12, 15, 8, 15
-            )
-        );
+                int slot = Math.max(1, width / months.size());
+                int barWidth = Math.max(8, slot - 12);
 
-        chartCard.add(
-            chartTitle,
-            BorderLayout.NORTH
-        );
+                for (int i = 0; i < months.size(); i++) {
+                    ReportsDAO.MonthCount month = months.get(i);
+                    int x = left + i * slot + (slot - barWidth) / 2;
+                    int barHeight = (int) (
+                        height * month.count() / (double) max
+                    );
+                    int y = top + height - barHeight;
 
-        chartPanel =
-            new ReportChartPanel();
+                    g.setColor(GREEN);
+                    g.fillRoundRect(
+                        x, y, barWidth, Math.max(0, barHeight),
+                        5, 5
+                    );
 
-        chartCard.add(
-            chartPanel,
-            BorderLayout.CENTER
-        );
+                    g.setColor(MUTED);
+                    g.setFont(new Font("SansSerif", Font.PLAIN, 10));
 
-        mainPanel.add(
-            chartCard,
-            BorderLayout.SOUTH
-        );
+                    String label = month.month();
+                    int labelWidth = g.getFontMetrics().stringWidth(label);
 
-        add(
-            mainPanel,
-            BorderLayout.CENTER
-        );
+                    g.drawString(
+                        label,
+                        x + (barWidth - labelWidth) / 2,
+                        top + height + 18
+                    );
+                }
 
-        // ==========================================
-        // EVENT HANDLING
-        // ==========================================
+                g.dispose();
+            }
+        };
+        
+        plot.setPreferredSize(new Dimension(900, 210));
+        plot.setMinimumSize(new Dimension(400, 150));
 
-        generateButton.addActionListener(e -> {
+        plot.setBackground(WHITE);
+        chartPanel.setLayout(new BorderLayout());
+        chartPanel.setBackground(WHITE);
+        chartPanel.add(plot, BorderLayout.CENTER);
+        chartPanel.revalidate();
+        chartPanel.repaint();
+    }
 
-            String selectedReport =
-                (String) reportType.getSelectedItem();
-
-            chartPanel.setReportType(
-                selectedReport
-            );
-        });
-
-        exportButton.addActionListener(e -> {
-
-            javax.swing.JOptionPane.showMessageDialog(
+    private void exportCsv() {
+        if (currentRows.isEmpty()) {
+            JOptionPane.showMessageDialog(
                 this,
-                "Report export functionality will be connected later.",
-                "Export Report",
-                javax.swing.JOptionPane.INFORMATION_MESSAGE
+                "Generate a report before exporting.",
+                "Nothing to Export",
+                JOptionPane.INFORMATION_MESSAGE
             );
-        });
+            return;
+        }
 
-        reportType.addActionListener(e -> {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setSelectedFile(new File("kahinbhi-report.csv"));
 
-            String selectedReport =
-                (String) reportType.getSelectedItem();
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
 
-            chartPanel.setReportType(
-                selectedReport
+        File file = chooser.getSelectedFile();
+
+        if (!file.getName().toLowerCase().endsWith(".csv")) {
+            file = new File(file.getParentFile(),
+                file.getName() + ".csv");
+        }
+
+        try (PrintWriter writer = new PrintWriter(
+                file, StandardCharsets.UTF_8)) {
+
+            writeCsvRow(writer, currentColumns);
+
+            for (ReportsDAO.ReportRow row : currentRows) {
+                writeCsvRow(writer, row.values());
+            }
+
+            JOptionPane.showMessageDialog(
+                this,
+                "Report exported successfully:\n" + file.getAbsolutePath(),
+                "Export Complete",
+                JOptionPane.INFORMATION_MESSAGE
             );
-        });
+
+        } catch (Exception ex) {
+            showError(ex);
+        }
     }
 
-    // ==========================================
-    // BUTTON STYLING
-    // ==========================================
+    private void writeCsvRow(PrintWriter writer, String[] values) {
+        for (int i = 0; i < values.length; i++) {
+            if (i > 0) {
+                writer.print(',');
+            }
 
-    private void stylePrimaryButton(
-        JButton button,
-        int width
-    ) {
+            String value = values[i] == null ? "" : values[i];
+            writer.print("\"" + value.replace("\"", "\"\"") + "\"");
+        }
 
-        button.setFont(
-            FontManager.semiBold(13)
-        );
+        writer.println();
+    }
 
-        button.setForeground(
-            AppTheme.CARD
-        );
-
-        button.setBackground(
-            AppTheme.PRIMARY
-        );
-
+    private void styleButton(JButton button, Color background) {
+        button.setFont(FontManager.semiBold(13));
+        button.setBackground(background);
+        button.setForeground(background.equals(WHITE)
+            ? AppTheme.TEXT_PRIMARY : Color.WHITE);
         button.setFocusPainted(false);
+        button.setOpaque(true);
         button.setBorderPainted(false);
+        button.setBorder(new EmptyBorder(11, 18, 11, 18));
+        button.setCursor(Cursor.getPredefinedCursor(
+            Cursor.HAND_CURSOR));
+    }
 
-        button.setPreferredSize(
-            new Dimension(width, 38)
+    private void showError(Exception ex) {
+        Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+
+        JOptionPane.showMessageDialog(
+            this,
+            cause.getMessage() == null
+                ? "An unexpected error occurred."
+                : cause.getMessage(),
+            "Reports Error",
+            JOptionPane.ERROR_MESSAGE
         );
     }
 
-    private void styleSecondaryButton(
-        JButton button,
-        int width
-    ) {
-
-        button.setFont(
-            FontManager.semiBold(13)
-        );
-
-        button.setForeground(
-            AppTheme.TEXT_PRIMARY
-        );
-
-        button.setBackground(
-            AppTheme.SURFACE
-        );
-
-        button.setFocusPainted(false);
-
-        button.setPreferredSize(
-            new Dimension(width, 38)
-        );
-    }
-
-    // ==========================================
-    // SIMPLE CHART PANEL
-    // ==========================================
-
-    private static class ReportChartPanel extends JPanel {
-
-        private static final long serialVersionUID = 1L;
-
-        private String reportType =
-            "Monthly Shipments";
-
-        public ReportChartPanel() {
-
-            setBackground(
-                AppTheme.CARD
-            );
-
-            setPreferredSize(
-                new Dimension(700, 230)
-            );
-        }
-
-        public void setReportType(
-            String reportType
-        ) {
-
-            this.reportType = reportType;
-
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(
-            Graphics g
-        ) {
-
-            super.paintComponent(g);
-
-            Graphics2D g2 =
-                (Graphics2D) g.create();
-
-            g2.setRenderingHint(
-                RenderingHints.KEY_ANTIALIASING,
-                RenderingHints.VALUE_ANTIALIAS_ON
-            );
-
-            int width = getWidth();
-            int height = getHeight();
-
-            // Chart area
-
-            int left = 60;
-            int bottom = height - 45;
-            int top = 30;
-            int right = width - 30;
-
-            // Axes
-
-            g2.setColor(
-                AppTheme.BORDER
-            );
-
-            g2.setStroke(
-                new BasicStroke(1)
-            );
-
-            g2.drawLine(
-                left,
-                top,
-                left,
-                bottom
-            );
-
-            g2.drawLine(
-                left,
-                bottom,
-                right,
-                bottom
-            );
-
-            // Grid lines
-
-            for (int i = 1; i <= 4; i++) {
-
-                int y =
-                    bottom
-                    - ((bottom - top) * i / 5);
-
-                g2.drawLine(
-                    left,
-                    y,
-                    right,
-                    y
-                );
-            }
-
-            // Sample data
-
-            int[] values = {
-                120,
-                180,
-                145,
-                230,
-                200,
-                270,
-                250,
-                310,
-                290,
-                340,
-                360,
-                390
-            };
-
-            String[] months = {
-                "Jan", "Feb", "Mar", "Apr",
-                "May", "Jun", "Jul", "Aug",
-                "Sep", "Oct", "Nov", "Dec"
-            };
-
-            int chartWidth =
-                right - left;
-
-            int step =
-                chartWidth / values.length;
-
-            // Bars
-
-            for (int i = 0;
-                 i < values.length;
-                 i++) {
-
-                int barHeight =
-                    (values[i] * 130) / 400;
-
-                int x =
-                    left
-                    + (i * step)
-                    + 5;
-
-                int y =
-                    bottom - barHeight;
-
-                g2.setColor(
-                    AppTheme.PRIMARY
-                );
-
-                g2.fillRoundRect(
-                    x,
-                    y,
-                    Math.max(12, step - 10),
-                    barHeight,
-                    6,
-                    6
-                );
-
-                g2.setColor(
-                    AppTheme.TEXT_SECONDARY
-                );
-
-                g2.setFont(
-                    FontManager.regular(10)
-                );
-
-                g2.drawString(
-                    months[i],
-                    x,
-                    bottom + 20
-                );
-            }
-
-            // Report name
-
-            g2.setColor(
-                AppTheme.TEXT_PRIMARY
-            );
-
-            g2.setFont(
-                FontManager.semiBold(12)
-            );
-
-            g2.drawString(
-                reportType,
-                left,
-                20
-            );
-
-            g2.dispose();
-        }
-    }
+    private record DashboardData(
+        ReportsDAO.Summary summary,
+        List<ReportsDAO.MonthCount> months
+    ) {}
 }

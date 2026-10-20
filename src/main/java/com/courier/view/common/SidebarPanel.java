@@ -136,7 +136,7 @@ public class SidebarPanel extends JPanel {
                 return "delivery-man.png";
 
             case "Profile":
-                return "profile.png";
+                return "user.png";
 
             case "Settings":
                 return "settings.png";
