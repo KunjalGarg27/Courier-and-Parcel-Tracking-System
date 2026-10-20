@@ -37,6 +37,7 @@ public class TrackingPanel extends JPanel {
             new JLabel("Enter your tracking number to begin.");
     private final JTextArea detailsArea = readOnlyArea();
     private final JTextArea historyArea = readOnlyArea();
+    private final RouteMapPanel routeMap = new RouteMapPanel();
 
     public TrackingPanel() {
 
@@ -52,7 +53,7 @@ public class TrackingPanel extends JPanel {
         JPanel content = new JPanel(new GridLayout(1, 2, 20, 0));
         content.setOpaque(false);
         content.add(buildSearchCard());
-        content.add(buildHistoryCard());
+        content.add(buildRightColumn());
         add(content, BorderLayout.CENTER);
     }
 
@@ -84,6 +85,24 @@ public class TrackingPanel extends JPanel {
         return card;
     }
 
+    private JPanel buildRightColumn() {
+
+        JLabel mapTitle = new JLabel("Shipment route");
+        mapTitle.setFont(FontManager.medium(16));
+        mapTitle.setForeground(AppTheme.TEXT_PRIMARY);
+
+        AppCard mapCard = new AppCard();
+        mapCard.setLayout(new BorderLayout(0, 12));
+        mapCard.add(mapTitle, BorderLayout.NORTH);
+        mapCard.add(routeMap, BorderLayout.CENTER);
+
+        JPanel column = new JPanel(new GridLayout(2, 1, 0, 20));
+        column.setOpaque(false);
+        column.add(mapCard);
+        column.add(buildHistoryCard());
+        return column;
+    }
+
     private AppCard buildHistoryCard() {
 
         JLabel label = new JLabel("Tracking history");
@@ -101,6 +120,7 @@ public class TrackingPanel extends JPanel {
 
         detailsArea.setText("");
         historyArea.setText("");
+        routeMap.clear();
 
         try {
             TrackingResult result =
@@ -113,6 +133,9 @@ public class TrackingPanel extends JPanel {
             }
 
             showResult(result);
+            routeMap.showRoute(result.getPickupCity(),
+                    result.getDeliveryCity(),
+                    result.getCurrentStatus());
             showMessage("Shipment found.", AppTheme.SUCCESS);
 
         } catch (IllegalArgumentException e) {

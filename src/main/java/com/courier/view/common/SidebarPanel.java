@@ -158,9 +158,23 @@ public class SidebarPanel extends JPanel {
             case "Settings":
                 return "settings.png";
 
+            case "Book Shipment":
+                return "box-alt.png";
+
+            case "My Shipments":
+                return "people-carry-box.png";
+
+            case "Delivery History":
+                return "data-report.png";
+
+            case "Profile":
+                return "profile.png";
+
             default:
                 return "";
+
         }
+
     }
     
     public void setMenuAction(

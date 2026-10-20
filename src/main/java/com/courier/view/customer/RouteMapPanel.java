@@ -91,8 +91,7 @@ public class RouteMapPanel extends JPanel {
         g2.draw(new QuadCurve2D.Double(sx, sy, cx, cy, ex, ey));
 
         // Pickup and delivery points
-        Color pointColor = new Color(139, 94, 60);
-        g2.setColor(pointColor);
+        g2.setColor(new Color(139, 94, 60));
         g2.fillOval((int) sx - 8, (int) sy - 8, 16, 16);
         g2.fillOval((int) ex - 8, (int) ey - 8, 16, 16);
 
@@ -119,7 +118,7 @@ public class RouteMapPanel extends JPanel {
 
         g2.setFont(FontManager.regular(11));
         g2.setColor(new Color(107, 114, 128));
-        g2.drawString("Position is based on shipment status — not live GPS",
+        g2.drawString("Position is based on shipment status, not live GPS",
                 14, h - 12);
 
         g2.dispose();

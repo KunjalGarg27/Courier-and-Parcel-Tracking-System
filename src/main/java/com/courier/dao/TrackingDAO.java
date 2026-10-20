@@ -1,17 +1,22 @@
-
 package com.courier.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import com.courier.model.Shipment;
 import com.courier.util.DBConnection;
 
 public class TrackingDAO {
+
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", Locale.ENGLISH);
 
     public Shipment findShipmentByTrackingNumber(String trackingNumber)
             throws SQLException {
@@ -117,12 +122,16 @@ public class TrackingDAO {
 
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    String status = rs.getString("status_name");
+                    String status = rs.getString("status_name")
+                            .replace('_', ' ');
                     String location =
                             rs.getString("location_description");
                     String notes = rs.getString("notes");
-                    String eventTime = rs.getTimestamp("event_time")
-                            .toLocalDateTime().toString();
+
+                    Timestamp time = rs.getTimestamp("event_time");
+                    String eventTime = time == null
+                            ? "-"
+                            : time.toLocalDateTime().format(DATE_FORMAT);
 
                     String entry = eventTime + " | " + status;
 
@@ -164,6 +173,7 @@ public class TrackingDAO {
             }
         }
     }
+
     // Returns {pickupCity, deliveryCity} for the shipment.
     public String[] findRouteCities(long shipmentId) throws SQLException {
 

@@ -10,10 +10,12 @@ import java.util.UUID;
 
 import com.courier.dao.AddressDAO;
 import com.courier.dao.CustomerDAO;
+import com.courier.dao.CustomerShipmentDAO;
 import com.courier.dao.ServiceTypeDAO;
 import com.courier.dao.ShipmentDAO;
 import com.courier.dao.ShipmentTrackingDAO;
 import com.courier.model.Address;
+import com.courier.model.CustomerStats;
 import com.courier.model.ServiceType;
 import com.courier.model.Shipment;
 import com.courier.util.DBConnection;
@@ -29,9 +31,29 @@ public class ShipmentService {
     private final ShipmentDAO shipmentDAO = new ShipmentDAO();
     private final ShipmentTrackingDAO trackingDAO = new ShipmentTrackingDAO();
     private final ServiceTypeDAO serviceTypeDAO = new ServiceTypeDAO();
+    private final CustomerShipmentDAO customerShipmentDAO =
+            new CustomerShipmentDAO();
 
     public List<ServiceType> getActiveServiceTypes() throws SQLException {
         return serviceTypeDAO.findActive();
+    }
+
+    // Shipment counts for the logged-in customer's dashboard.
+    public CustomerStats getDashboardStats(long userId) throws SQLException {
+        requireLoggedIn(userId);
+        return customerShipmentDAO.findStatsByUserId(userId);
+    }
+
+    // Rows for the My Shipments table: only this customer's shipments.
+    public List<String[]> getMyShipments(long userId) throws SQLException {
+        requireLoggedIn(userId);
+        return customerShipmentDAO.findShipmentsByUserId(userId);
+    }
+
+    // Rows for Delivery History: only this customer's DELIVERED shipments.
+    public List<String[]> getDeliveryHistory(long userId) throws SQLException {
+        requireLoggedIn(userId);
+        return customerShipmentDAO.findDeliveredByUserId(userId);
     }
 
     // Books a shipment for the logged-in user and returns the tracking number.
@@ -41,10 +63,7 @@ public class ShipmentService {
             Address pickup,
             Address delivery) throws SQLException {
 
-        if (userId <= 0) {
-            throw new IllegalArgumentException(
-                    "You are not logged in. Please log in again.");
-        }
+        requireLoggedIn(userId);
 
         validateShipment(shipment);
         validateAddress(pickup, "Pickup");
@@ -90,6 +109,13 @@ public class ShipmentService {
                 }
                 throw e;
             }
+        }
+    }
+
+    private void requireLoggedIn(long userId) {
+        if (userId <= 0) {
+            throw new IllegalArgumentException(
+                    "You are not logged in. Please log in again.");
         }
     }
 

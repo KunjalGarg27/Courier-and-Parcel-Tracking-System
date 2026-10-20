@@ -27,13 +27,15 @@ public class TrackingService {
                     "Tracking number is too long.");
         }
 
-        Shipment shipment = trackingDAO.findShipmentByTrackingNumber(normalized);
+        Shipment shipment =
+                trackingDAO.findShipmentByTrackingNumber(normalized);
 
         if (shipment == null) {
             return null;
         }
 
-        String status = trackingDAO.findCurrentStatus(shipment.getShipmentId());
+        String status =
+                trackingDAO.findCurrentStatus(shipment.getShipmentId());
         List<String> history =
                 trackingDAO.findTrackingHistory(shipment.getShipmentId());
         String[] cities =

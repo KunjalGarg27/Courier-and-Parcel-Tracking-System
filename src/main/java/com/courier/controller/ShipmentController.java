@@ -4,6 +4,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import com.courier.model.Address;
+import com.courier.model.CustomerStats;
 import com.courier.model.ServiceType;
 import com.courier.model.Shipment;
 import com.courier.service.ShipmentService;
@@ -24,5 +25,17 @@ public class ShipmentController {
 
         return shipmentService.bookShipment(
                 userId, shipment, pickup, delivery);
+    }
+
+    public CustomerStats getDashboardStats(long userId) throws SQLException {
+        return shipmentService.getDashboardStats(userId);
+    }
+
+    public List<String[]> getMyShipments(long userId) throws SQLException {
+        return shipmentService.getMyShipments(userId);
+    }
+
+    public List<String[]> getDeliveryHistory(long userId) throws SQLException {
+        return shipmentService.getDeliveryHistory(userId);
     }
 }

@@ -21,7 +21,8 @@ public class CustomerFrame extends BaseFrame {
 
         createSidebar();
 
-        showCustomerPanel(new CustomerDashboardPanel());
+        // Show Dashboard when CustomerFrame opens
+        showCustomerPanel(new CustomerDashboardPanel(user.getUserId()));
     }
 
     private void createSidebar() {
@@ -39,26 +40,35 @@ public class CustomerFrame extends BaseFrame {
 
         add(sidebar, BorderLayout.WEST);
 
+        // Dashboard (reloads the shipment counts from the database)
         sidebar.setMenuAction("Dashboard",
-                () -> showCustomerPanel(new CustomerDashboardPanel()));
+                () -> showCustomerPanel(
+                        new CustomerDashboardPanel(user.getUserId())));
 
+        // Book Shipment
         sidebar.setMenuAction("Book Shipment",
                 () -> showCustomerPanel(
                         new BookShipmentPanel(user.getUserId())));
 
+        // My Shipments (loads this customer's shipments from the database)
         sidebar.setMenuAction("My Shipments",
-                () -> showCustomerPanel(new MyShipmentsPanel()));
+                () -> showCustomerPanel(
+                        new MyShipmentsPanel(user.getUserId())));
 
-        // Uses the customer TrackingPanel from this same package.
+        // Tracking (uses the customer TrackingPanel from this same package)
         sidebar.setMenuAction("Tracking",
                 () -> showCustomerPanel(new TrackingPanel()));
 
+        // Delivery History (this customer's DELIVERED shipments)
         sidebar.setMenuAction("Delivery History",
-                () -> showCustomerPanel(new DeliveryHistoryPanel()));
+                () -> showCustomerPanel(
+                        new DeliveryHistoryPanel(user.getUserId())));
 
+        // Profile (still demo data)
         sidebar.setMenuAction("Profile",
                 () -> showCustomerPanel(new CustomerProfilePanel()));
 
+        // Settings
         sidebar.setMenuAction("Settings",
                 () -> showCustomerPanel(new CustomerSettingsPanel()));
     }
