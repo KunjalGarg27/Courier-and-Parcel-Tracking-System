@@ -3,10 +3,13 @@ package com.courier.main;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.sql.SQLException;
+import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -15,10 +18,18 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumn;
 
+import com.courier.model.User;
+
+import com.courier.dao.DeliveryAgentDAO;
 import com.courier.util.AppTheme;
+import com.courier.view.agent.AgentDashboardPanel;
+import com.courier.view.agent.AgentSettingsPanel;
 import com.courier.view.common.BaseFrame;
 import com.courier.view.common.SidebarPanel;
 
@@ -26,63 +37,118 @@ public class AgentGUITest {
 
     private static JPanel mainArea;
     private static BaseFrame frame;
+    private static long agentId;
+    private static String[] agentProfile;
+
+    private static final DeliveryAgentDAO dao = new DeliveryAgentDAO();
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> createGUI());
+        SwingUtilities.invokeLater(AgentGUITest::createGUI);
     }
 
-    private static void createGUI() {
 
-        frame = new BaseFrame(
-                "Delivery Agent Portal",
-                "Lovedeep",
-                "Delivery Agent"
+private static void createGUI() {
+    try {
+        agentId = dao.getAgentIdByEmail("agent.test@kahinbhi.com");
+
+        if (agentId == -1) {
+            JOptionPane.showMessageDialog(
+                null,
+                "Agent account not found in the database."
+            );
+            return;
+        }
+
+        agentProfile = dao.getAgentProfile(agentId);
+
+        if (agentProfile == null) {
+            JOptionPane.showMessageDialog(
+                null,
+                "Could not load the delivery agent profile."
+            );
+            return;
+        }
+
+        createGUIForAuthenticatedAgent(null);
+
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(
+            null,
+            "Could not connect to the database:\n" + e.getMessage(),
+            "Database Error",
+            JOptionPane.ERROR_MESSAGE
         );
-
-        JPanel root = new JPanel(new BorderLayout());
-        root.setBackground(AppTheme.BACKGROUND);
-
-        SidebarPanel sidebar = new SidebarPanel(
-                new String[] {
-                        "Dashboard",
-                        "My Deliveries",
-                        "Tracking",
-                        "Delivery History"
-                }
-        );
-
-        mainArea = new JPanel(new BorderLayout());
-        mainArea.setBackground(AppTheme.BACKGROUND);
-
-        root.add(sidebar, BorderLayout.WEST);
-        root.add(mainArea, BorderLayout.CENTER);
-
-        frame.setContent(root);
-
-        // Dashboard button
-        sidebar.setMenuAction("Dashboard", () ->
-                showContent(createDashboard()));
-
-        // My Deliveries button
-        sidebar.setMenuAction("My Deliveries", () ->
-                showContent(createMyDeliveries()));
-
-        // Tracking button
-        sidebar.setMenuAction("Tracking", () ->
-                showContent(createTracking()));
-
-        // Delivery History button
-        sidebar.setMenuAction("Delivery History", () ->
-                showContent(createDeliveryHistory()));
-
-        // Settings button
-        sidebar.setMenuAction("Settings", () ->
-                showContent(createSettings()));
-
-        showContent(createDashboard());
-
-        frame.setVisible(true);
+        e.printStackTrace();
     }
+}
+
+	private static void createGUIForAuthenticatedAgent(
+	        com.courier.model.User user) {
+	
+	    String agentName;
+	
+	    if (user != null) {
+	        agentName = user.getFullName();
+	    } else {
+	        agentName = agentProfile[0];
+	    }
+	
+	    frame = new BaseFrame(
+	        "Delivery Agent Portal",
+	        agentName,
+	        "Delivery Agent"
+	    );
+	
+	    JPanel root = new JPanel(new BorderLayout());
+	    root.setBackground(AppTheme.BACKGROUND);
+	
+	    SidebarPanel sidebar = new SidebarPanel(
+	        new String[] {
+	            "Dashboard",
+	            "My Deliveries",
+	            "Tracking",
+	            "Delivery History",
+	            "Settings"
+	        }
+	    );
+	
+	    mainArea = new JPanel(new BorderLayout());
+	    mainArea.setBackground(AppTheme.BACKGROUND);
+	
+	    root.add(sidebar, BorderLayout.WEST);
+	    root.add(mainArea, BorderLayout.CENTER);
+	
+	    frame.setContent(root);
+	
+	    sidebar.setMenuAction(
+	        "Dashboard",
+	        () -> showContent(createDashboard())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "My Deliveries",
+	        () -> showContent(createMyDeliveries())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Tracking",
+	        () -> showContent(createTracking())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Delivery History",
+	        () -> showContent(createDeliveryHistory())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Settings",
+	        () -> showContent(new AgentSettingsPanel(agentId))
+	    );
+	
+	    showContent(createDashboard());
+	    frame.setVisible(true);
+	}
+
 
     private static void showContent(JPanel panel) {
         mainArea.removeAll();
@@ -90,212 +156,629 @@ public class AgentGUITest {
         mainArea.revalidate();
         mainArea.repaint();
     }
+    
+    public static void openForUser(User user) {
+        if (user == null || user.getEmail() == null) {
+            javax.swing.JOptionPane.showMessageDialog(
+                null,
+                "Unable to identify the logged-in delivery agent.",
+                "Login Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                agentId = dao.getAgentIdByEmail(user.getEmail());
+
+                if (agentId == -1) {
+                    javax.swing.JOptionPane.showMessageDialog(
+                        null,
+                        "No delivery-agent account is linked to this login.",
+                        "Account Not Found",
+                        javax.swing.JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                agentProfile = dao.getAgentProfile(agentId);
+
+                if (agentProfile == null) {
+                    javax.swing.JOptionPane.showMessageDialog(
+                        null,
+                        "Unable to load your delivery-agent profile.",
+                        "Profile Error",
+                        javax.swing.JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                createGUIForAuthenticatedAgent(user);
+
+            } catch (java.sql.SQLException ex) {
+                javax.swing.JOptionPane.showMessageDialog(
+                    null,
+                    "Unable to open the delivery-agent portal:\n"
+                        + ex.getMessage(),
+                    "Database Error",
+                    javax.swing.JOptionPane.ERROR_MESSAGE
+                );
+                ex.printStackTrace();
+            }
+        });
+    }
 
     // DASHBOARD
     private static JPanel createDashboard() {
-
-        JPanel panel = new JPanel(new BorderLayout(15, 15));
-        panel.setBackground(AppTheme.BACKGROUND);
-        panel.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
-
-        JLabel title = new JLabel("Dashboard");
-        title.setFont(new Font("Arial", Font.BOLD, 27));
-        title.setForeground(AppTheme.TEXT_PRIMARY);
-
-        JLabel subtitle = new JLabel(
-                "Welcome back! Here is your delivery overview."
-        );
-        subtitle.setForeground(AppTheme.TEXT_SECONDARY);
-
-        JPanel heading = new JPanel(new BorderLayout(5, 8));
-        heading.setOpaque(false);
-        heading.add(title, BorderLayout.NORTH);
-        heading.add(subtitle, BorderLayout.CENTER);
-
-        JPanel stats = new JPanel(new GridLayout(1, 4, 15, 15));
-        stats.setOpaque(false);
-
-        stats.add(createStatCard("Assigned", "12"));
-        stats.add(createStatCard("Pending", "5"));
-        stats.add(createStatCard("Out for Delivery", "3"));
-        stats.add(createStatCard("Completed Today", "4"));
-
-        String[] columns = {
-                "Parcel ID", "Customer", "Destination", "Status"
-        };
-
-        Object[][] data = {
-                {"KB1001", "Rahul Sharma", "Faridabad", "Pending"},
-                {"KB1002", "Priya Verma", "Delhi", "Out for Delivery"},
-                {"KB1003", "Aman Singh", "Gurugram", "Delivered"},
-                {"KB1004", "Neha Gupta", "Noida", "Pending"}
-        };
-
-        JTable table = createTable(columns, data);
-
-        JPanel recent = createSection("Recent Deliveries");
-        recent.add(new JScrollPane(table), BorderLayout.CENTER);
-
-        JPanel center = new JPanel(new BorderLayout(20, 20));
-        center.setOpaque(false);
-        center.add(stats, BorderLayout.NORTH);
-        center.add(recent, BorderLayout.CENTER);
-
-        panel.add(heading, BorderLayout.NORTH);
-        panel.add(center, BorderLayout.CENTER);
-
-        return panel;
-    }
-
-    private static JPanel createStatCard(String label, String value) {
-
-        JPanel card = new JPanel(new BorderLayout(8, 12));
-        card.setBackground(AppTheme.CARD);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(AppTheme.BORDER),
-                BorderFactory.createEmptyBorder(20, 15, 20, 15)
-        ));
-
-        JLabel name = new JLabel(label);
-        name.setForeground(AppTheme.TEXT_SECONDARY);
-        name.setFont(new Font("Arial", Font.PLAIN, 14));
-
-        JLabel number = new JLabel(value);
-        number.setForeground(AppTheme.PRIMARY);
-        number.setFont(new Font("Arial", Font.BOLD, 28));
-
-        card.add(name, BorderLayout.NORTH);
-        card.add(number, BorderLayout.CENTER);
-
-        return card;
+        return new AgentDashboardPanel(agentId);
     }
 
     // MY DELIVERIES
     private static JPanel createMyDeliveries() {
-
         JPanel panel = createPagePanel(
-                "My Deliveries",
-                "View and manage your assigned parcels."
+            "My Deliveries",
+            "View your assigned parcels and their current status."
         );
 
         String[] columns = {
-                "Parcel ID", "Customer", "Phone",
-                "Address", "Status"
+            "Parcel ID",
+            "Customer",
+            "Phone",
+            "Address",
+            "Shipment Status",
+            "Assignment ID",
+            "Assignment Status"
         };
 
-        Object[][] data = {
-                {"KB1001", "Rahul Sharma", "98XXXXXX10",
-                        "Sector 15, Faridabad", "Pending"},
-                {"KB1002", "Priya Verma", "97XXXXXX21",
-                        "South Delhi", "Out for Delivery"},
-                {"KB1003", "Aman Singh", "99XXXXXX32",
-                        "Gurugram", "Delivered"},
-                {"KB1004", "Neha Gupta", "96XXXXXX43",
-                        "Noida Sector 62", "Pending"}
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
 
-        JTable table = createTable(columns, data);
+        JTable table = createTable(model);
+
+        try {
+            List<String[]> deliveries = dao.getAssignedDeliveries(agentId);
+
+            for (String[] d : deliveries) {
+                model.addRow(new Object[] {
+                    d[2],
+                    d[3],
+                    d[4],
+                    d[5],
+                    d[7],
+                    d[0],
+                    d[6]
+                });
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(
+                frame,
+                "Could not load deliveries:\n" + e.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+
+        hideColumn(table, "Assignment ID");
+        hideColumn(table, "Assignment Status");
+
         JPanel section = createSection("Assigned Parcels");
         section.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JButton refreshButton = createButton("Refresh");
+        refreshButton.addActionListener(e ->
+            showContent(createMyDeliveries())
+        );
 
         JButton updateButton = createButton("Update Status");
 
         updateButton.addActionListener(e -> {
-            int row = table.getSelectedRow();
+            int selectedViewRow = table.getSelectedRow();
 
-            if (row == -1) {
+            if (selectedViewRow == -1) {
                 JOptionPane.showMessageDialog(
-                        frame, "Please select a parcel first."
+                    frame,
+                    "Please select a parcel first."
                 );
                 return;
             }
 
-            String[] statuses = {
-                    "Pending",
-                    "Out for Delivery",
-                    "Delivered",
-                    "Failed"
-            };
+            int selectedModelRow =
+                table.convertRowIndexToModel(selectedViewRow);
 
-            String status = (String) JOptionPane.showInputDialog(
+            String trackingNumber =
+                String.valueOf(model.getValueAt(selectedModelRow, 0));
+
+            long selectedAssignmentId;
+
+            try {
+                selectedAssignmentId = Long.parseLong(
+                    String.valueOf(model.getValueAt(selectedModelRow, 5))
+                );
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(
                     frame,
-                    "Select the new delivery status:",
-                    "Update Delivery Status",
-                    JOptionPane.PLAIN_MESSAGE,
-                    null,
-                    statuses,
-                    table.getValueAt(row, 4)
+                    "Could not identify the selected delivery.",
+                    "Selection Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+            String currentStatus =
+                String.valueOf(model.getValueAt(selectedModelRow, 6));
+
+            String nextStatus;
+
+            switch (currentStatus) {
+                case "ASSIGNED" ->
+                    nextStatus = "ACCEPTED";
+                case "ACCEPTED" ->
+                    nextStatus = "IN_PROGRESS";
+                case "IN_PROGRESS" ->
+                    nextStatus = "COMPLETED";
+                default -> {
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "This delivery cannot be updated from status: "
+                            + currentStatus
+                    );
+                    return;
+                }
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(
+                frame,
+                "Parcel: " + trackingNumber
+                    + "\nCurrent assignment status: " + currentStatus
+                    + "\nNew assignment status: " + nextStatus
+                    + "\n\nContinue with this update?",
+                "Confirm Status Update",
+                JOptionPane.YES_NO_OPTION
             );
 
-            if (status != null) {
-                table.setValueAt(status, row, 4);
-                JOptionPane.showMessageDialog(
-                        frame, "Status updated in this test view."
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            String notes = JOptionPane.showInputDialog(
+                frame,
+                "Enter an optional delivery note:",
+                "Delivery Note",
+                JOptionPane.PLAIN_MESSAGE
+            );
+
+            if (notes == null) {
+                return;
+            }
+
+            Double latitude = null;
+            Double longitude = null;
+
+            int coordinateChoice = JOptionPane.showConfirmDialog(
+                frame,
+                "Do you want to record coordinates for this event?\n"
+                    + "Choose No to continue without coordinates.",
+                "Record Location",
+                JOptionPane.YES_NO_OPTION
+            );
+
+            if (coordinateChoice == JOptionPane.YES_OPTION) {
+                JTextField latitudeField = new JTextField(12);
+                JTextField longitudeField = new JTextField(12);
+
+                JPanel coordinatePanel = new JPanel(
+                    new GridLayout(0, 2, 10, 10)
                 );
+
+                coordinatePanel.add(new JLabel("Latitude (-90 to 90):"));
+                coordinatePanel.add(latitudeField);
+                coordinatePanel.add(new JLabel("Longitude (-180 to 180):"));
+                coordinatePanel.add(longitudeField);
+
+                int coordinateResult = JOptionPane.showConfirmDialog(
+                    frame,
+                    coordinatePanel,
+                    "Enter Delivery Coordinates",
+                    JOptionPane.OK_CANCEL_OPTION,
+                    JOptionPane.PLAIN_MESSAGE
+                );
+
+                if (coordinateResult != JOptionPane.OK_OPTION) {
+                    return;
+                }
+
+                try {
+                    latitude = Double.parseDouble(
+                        latitudeField.getText().trim()
+                    );
+
+                    longitude = Double.parseDouble(
+                        longitudeField.getText().trim()
+                    );
+
+                    if (!Double.isFinite(latitude)
+                            || !Double.isFinite(longitude)
+                            || latitude < -90
+                            || latitude > 90
+                            || longitude < -180
+                            || longitude > 180) {
+
+                        JOptionPane.showMessageDialog(
+                            frame,
+                            "Invalid coordinates.\n"
+                                + "Latitude must be between -90 and 90.\n"
+                                + "Longitude must be between -180 and 180.",
+                            "Invalid Coordinates",
+                            JOptionPane.WARNING_MESSAGE
+                        );
+                        return;
+                    }
+
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Please enter valid numeric latitude and longitude.",
+                        "Invalid Coordinates",
+                        JOptionPane.WARNING_MESSAGE
+                    );
+                    return;
+                }
+            }
+
+            try {
+                dao.updateDeliveryStatus(
+                    agentId,
+                    selectedAssignmentId,
+                    nextStatus,
+                    notes,
+                    latitude,
+                    longitude
+                );
+
+                String successMessage =
+                    "Delivery status updated successfully.\n"
+                        + "Parcel: " + trackingNumber
+                        + "\nNew status: " + nextStatus;
+
+                if (latitude != null && longitude != null) {
+                    successMessage += "\nLatitude: " + latitude
+                        + "\nLongitude: " + longitude;
+                } else {
+                    successMessage += "\nCoordinates were not recorded.";
+                }
+
+                JOptionPane.showMessageDialog(
+                    frame,
+                    successMessage,
+                    "Update Successful",
+                    JOptionPane.INFORMATION_MESSAGE
+                );
+
+                showContent(createMyDeliveries());
+
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not update delivery status:\n" + ex.getMessage(),
+                    "Update Failed",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                ex.printStackTrace();
             }
         });
 
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        bottom.setOpaque(false);
-        bottom.add(updateButton);
+        // REJECT DELIVERY
+        JButton rejectButton = createButton("Reject Delivery");
 
-        section.add(bottom, BorderLayout.SOUTH);
+        rejectButton.addActionListener(e -> {
+            int selectedViewRow = table.getSelectedRow();
+
+            if (selectedViewRow == -1) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Please select a parcel to reject.",
+                    "No Parcel Selected",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
+            int selectedModelRow =
+                table.convertRowIndexToModel(selectedViewRow);
+
+            String trackingNumber =
+                String.valueOf(model.getValueAt(selectedModelRow, 0));
+
+            String currentStatus =
+                String.valueOf(model.getValueAt(selectedModelRow, 6));
+
+            long selectedAssignmentId;
+
+            try {
+                selectedAssignmentId = Long.parseLong(
+                    String.valueOf(model.getValueAt(selectedModelRow, 5))
+                );
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not identify the selected delivery.",
+                    "Selection Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
+            if (!"ASSIGNED".equalsIgnoreCase(currentStatus)) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Only newly assigned deliveries can be rejected.",
+                    "Cannot Reject Delivery",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
+            JTextField reasonField = new JTextField(25);
+
+            JPanel reasonPanel = new JPanel(new BorderLayout(8, 8));
+            reasonPanel.add(
+                new JLabel("Enter the reason for rejecting this delivery:"),
+                BorderLayout.NORTH
+            );
+            reasonPanel.add(reasonField, BorderLayout.CENTER);
+
+            int reasonChoice = JOptionPane.showConfirmDialog(
+                frame,
+                reasonPanel,
+                "Reject Delivery - " + trackingNumber,
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+
+            if (reasonChoice != JOptionPane.OK_OPTION) {
+                return;
+            }
+
+            String reason = reasonField.getText().trim();
+
+            if (reason.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "A rejection reason is required.",
+                    "Reason Required",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
+            if (reason.length() > 500) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "The rejection reason cannot exceed 500 characters.",
+                    "Reason Too Long",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                return;
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(
+                frame,
+                "Are you sure you want to reject this delivery?\n\n"
+                    + "Tracking number: " + trackingNumber
+                    + "\nReason: " + reason,
+                "Confirm Rejection",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+            );
+
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            try {
+                boolean rejected = dao.rejectDelivery(
+                    agentId,
+                    selectedAssignmentId,
+                    reason
+                );
+
+                if (rejected) {
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Delivery rejected successfully.\n"
+                            + "Tracking number: " + trackingNumber
+                            + "\nReason: " + reason,
+                        "Rejection Successful",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+                } else {
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "The delivery was not rejected. It may have "
+                            + "already changed or may not belong to you.",
+                        "Rejection Failed",
+                        JOptionPane.WARNING_MESSAGE
+                    );
+                }
+
+                showContent(createMyDeliveries());
+
+            } catch (RuntimeException ex) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not reject delivery:\n" + ex.getMessage(),
+                    "Rejection Failed",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                ex.printStackTrace();
+            }
+        });
+
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttons.setOpaque(false);
+        buttons.add(refreshButton);
+        buttons.add(updateButton);
+        buttons.add(rejectButton);
+
+        section.add(buttons, BorderLayout.SOUTH);
         panel.add(section, BorderLayout.CENTER);
 
         return panel;
     }
 
-    // TRACKING
-    private static JPanel createTracking() {
+    private static void hideColumn(JTable table, String columnName) {
+        TableColumn column =
+            table.getColumnModel().getColumn(
+                table.getColumnModel().getColumnIndex(columnName)
+            );
 
+        column.setMinWidth(0);
+        column.setMaxWidth(0);
+        column.setPreferredWidth(0);
+        column.setResizable(false);
+    }
+
+    // TRACKING TIMELINE
+    private static JPanel createTracking() {
         JPanel panel = createPagePanel(
-                "Tracking",
-                "Check the current status of a parcel."
+            "Tracking",
+            "View the complete recorded history of a parcel assigned to you."
         );
 
-        JPanel section = createSection("Track a Parcel");
+        JPanel section = createSection("Parcel Tracking Timeline");
 
-        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 15));
+        JPanel searchPanel = new JPanel(
+            new FlowLayout(FlowLayout.LEFT, 12, 12)
+        );
         searchPanel.setOpaque(false);
 
-        javax.swing.JTextField parcelField =
-                new javax.swing.JTextField(20);
+        JTextField parcelField = new JTextField(20);
         parcelField.setPreferredSize(new Dimension(230, 35));
 
         JButton trackButton = createButton("Track Parcel");
+        JButton clearButton = createButton("Clear");
 
-        JLabel result = new JLabel("Enter a parcel ID to begin tracking.");
+        JLabel result = new JLabel(
+            "Enter a tracking number to view its tracking history."
+        );
         result.setForeground(AppTheme.TEXT_SECONDARY);
 
-        trackButton.addActionListener(e -> {
-            String id = parcelField.getText().trim();
+        String[] columns = {
+            "Event Date / Time",
+            "Shipment Status",
+            "Location",
+            "Notes",
+            "Latitude",
+            "Longitude"
+        };
 
-            if (id.isEmpty()) {
+        DefaultTableModel timelineModel =
+            new DefaultTableModel(columns, 0) {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    return false;
+                }
+            };
+
+        JTable timelineTable = createTable(timelineModel);
+        timelineTable.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+
+        JScrollPane timelineScroll = new JScrollPane(timelineTable);
+        timelineScroll.setPreferredSize(new Dimension(700, 300));
+
+        trackButton.addActionListener(e -> {
+            String trackingNumber = parcelField.getText().trim();
+
+            if (trackingNumber.isEmpty()) {
                 JOptionPane.showMessageDialog(
-                        frame, "Please enter a parcel ID."
+                    frame,
+                    "Please enter a tracking number.",
+                    "Tracking Number Required",
+                    JOptionPane.WARNING_MESSAGE
                 );
+                parcelField.requestFocusInWindow();
                 return;
             }
 
-            if (id.equalsIgnoreCase("KB1001")) {
-                result.setText("KB1001 — Pending");
-            } else if (id.equalsIgnoreCase("KB1002")) {
-                result.setText("KB1002 — Out for Delivery");
-            } else if (id.equalsIgnoreCase("KB1003")) {
-                result.setText("KB1003 — Delivered");
-            } else if (id.equalsIgnoreCase("KB1004")) {
-                result.setText("KB1004 — Pending");
-            } else {
-                result.setText("No parcel found in the test data.");
+            timelineModel.setRowCount(0);
+            result.setText("Loading tracking history...");
+
+            try {
+                List<String[]> timeline =
+                    dao.getTrackingTimeline(agentId, trackingNumber);
+
+                if (timeline.isEmpty()) {
+                    result.setText(
+                        "No tracking events found for this parcel. "
+                            + "The parcel may not be assigned to you, "
+                            + "or no tracking events have been recorded."
+                    );
+                    return;
+                }
+
+                for (String[] event : timeline) {
+                    timelineModel.addRow(new Object[] {
+                        event[0],
+                        event[1],
+                        event[2],
+                        event[3],
+                        event[4],
+                        event[5]
+                    });
+                }
+
+                result.setText(
+                    "Tracking number: " + trackingNumber
+                        + "    |    Recorded events: " + timeline.size()
+                );
+
+            } catch (SQLException ex) {
+                result.setText("Could not load tracking history.");
+
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not retrieve tracking history:\n" + ex.getMessage(),
+                    "Database Error",
+                    JOptionPane.ERROR_MESSAGE
+                );
+
+                ex.printStackTrace();
             }
         });
 
-        searchPanel.add(new JLabel("Parcel ID:"));
+        clearButton.addActionListener(e -> {
+            parcelField.setText("");
+            timelineModel.setRowCount(0);
+            result.setText(
+                "Enter a tracking number to view its tracking history."
+            );
+            parcelField.requestFocusInWindow();
+        });
+
+        parcelField.addActionListener(e -> trackButton.doClick());
+
+        searchPanel.add(new JLabel("Tracking Number:"));
         searchPanel.add(parcelField);
         searchPanel.add(trackButton);
+        searchPanel.add(clearButton);
+
+        JPanel timelinePanel = new JPanel(new BorderLayout(8, 8));
+        timelinePanel.setOpaque(false);
+        timelinePanel.add(result, BorderLayout.NORTH);
+        timelinePanel.add(timelineScroll, BorderLayout.CENTER);
 
         section.add(searchPanel, BorderLayout.NORTH);
-        section.add(result, BorderLayout.CENTER);
+        section.add(timelinePanel, BorderLayout.CENTER);
 
         panel.add(section, BorderLayout.CENTER);
 
@@ -304,58 +787,143 @@ public class AgentGUITest {
 
     // DELIVERY HISTORY
     private static JPanel createDeliveryHistory() {
-
         JPanel panel = createPagePanel(
-                "Delivery History",
-                "Review completed and previous delivery records."
+            "Delivery History",
+            "Review completed and rejected deliveries, including rejection reasons."
         );
 
         String[] columns = {
-                "Parcel ID", "Customer", "Destination",
-                "Delivery Date", "Status"
+            "Parcel ID",
+            "Customer",
+            "Phone",
+            "Destination",
+            "Assignment Status",
+            "Assigned At",
+            "Completed At",
+            "Rejection Reason"
         };
 
-        Object[][] data = {
-                {"KB1003", "Aman Singh", "Gurugram",
-                        "12 Oct 2026", "Delivered"},
-                {"KB0998", "Karan Mehta", "Delhi",
-                        "11 Oct 2026", "Delivered"},
-                {"KB0992", "Simran Kaur", "Noida",
-                        "10 Oct 2026", "Delivered"}
+        DefaultTableModel model = new DefaultTableModel(columns, 0) {
+            private static final long serialVersionUID = 1L;
+
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
         };
 
-        JTable table = createTable(columns, data);
+        JTable table = createTable(model);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 
-        JPanel section = createSection("Previous Deliveries");
-        section.add(new JScrollPane(table), BorderLayout.CENTER);
+        try {
+            List<String[]> history = dao.getDeliveryHistory(agentId);
+
+            for (String[] d : history) {
+                model.addRow(new Object[] {
+                    d[1],
+                    d[2],
+                    d[3],
+                    d[4],
+                    d[7],
+                    d[5],
+                    d[6],
+                    d[8]
+                });
+            }
+
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(
+                frame,
+                "Could not load delivery history:\n" + e.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+
+        JPanel section = createSection(
+            "Completed and Rejected Deliveries"
+        );
+
+        if (model.getRowCount() == 0) {
+            JLabel empty = new JLabel(
+                "No completed or rejected deliveries found.",
+                SwingConstants.CENTER
+            );
+            empty.setForeground(AppTheme.TEXT_SECONDARY);
+            section.add(empty, BorderLayout.CENTER);
+        } else {
+            section.add(new JScrollPane(table), BorderLayout.CENTER);
+        }
+
+        JButton refreshButton = createButton("Refresh");
+        refreshButton.addActionListener(
+            e -> showContent(createDeliveryHistory())
+        );
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottom.setOpaque(false);
+        bottom.add(refreshButton);
+        section.add(bottom, BorderLayout.SOUTH);
 
         panel.add(section, BorderLayout.CENTER);
 
         return panel;
     }
 
-    // SETTINGS
+    // SETTINGS - LOAD AND SAVE PROFILE
     private static JPanel createSettings() {
-
         JPanel panel = createPagePanel(
-                "Settings",
-                "Manage your delivery agent profile."
+            "Settings",
+            "View your profile and update your phone number."
         );
 
         JPanel section = createSection("Agent Profile");
 
         JPanel form = new JPanel(new GridLayout(0, 2, 15, 18));
         form.setOpaque(false);
-        form.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        form.setBorder(
+            BorderFactory.createEmptyBorder(20, 20, 20, 20)
+        );
 
-        javax.swing.JTextField nameField =
-                new javax.swing.JTextField("Lovedeep");
-        javax.swing.JTextField roleField =
-                new javax.swing.JTextField("Delivery Agent");
-        javax.swing.JTextField phoneField =
-                new javax.swing.JTextField("");
-        javax.swing.JTextField emailField =
-                new javax.swing.JTextField("");
+        JTextField nameField = new JTextField();
+        JTextField roleField = new JTextField("Delivery Agent");
+        JTextField phoneField = new JTextField();
+        JTextField emailField = new JTextField();
+
+        nameField.setEditable(false);
+        roleField.setEditable(false);
+        emailField.setEditable(false);
+
+        nameField.setBackground(AppTheme.BACKGROUND);
+        roleField.setBackground(AppTheme.BACKGROUND);
+        emailField.setBackground(AppTheme.BACKGROUND);
+
+        try {
+            agentProfile = dao.getAgentProfile(agentId);
+
+            if (agentProfile == null) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not find your profile in the database.",
+                    "Profile Not Found",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                return panel;
+            }
+
+            nameField.setText(agentProfile[0]);
+            emailField.setText(agentProfile[1]);
+            phoneField.setText(agentProfile[2]);
+
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(
+                frame,
+                "Could not load your profile:\n" + ex.getMessage(),
+                "Database Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+            return panel;
+        }
 
         form.add(new JLabel("Full Name"));
         form.add(nameField);
@@ -366,20 +934,99 @@ public class AgentGUITest {
         form.add(new JLabel("Email Address"));
         form.add(emailField);
 
-        JButton saveButton = createButton("Save Settings");
-
-        saveButton.addActionListener(e ->
-                JOptionPane.showMessageDialog(
-                        frame,
-                        "Settings saved in this test view."
-                )
+        JLabel hint = new JLabel(
+            "Only your phone number can be edited on this page."
         );
+        hint.setForeground(AppTheme.TEXT_SECONDARY);
+
+        JPanel formContainer = new JPanel(new BorderLayout(8, 12));
+        formContainer.setOpaque(false);
+        formContainer.add(form, BorderLayout.CENTER);
+        formContainer.add(hint, BorderLayout.SOUTH);
+
+        JButton saveButton = createButton("Save Settings");
+        JButton reloadButton = createButton("Reload Profile");
+
+        saveButton.addActionListener(e -> {
+            String phone = phoneField.getText().trim();
+
+            if (phone.isEmpty()) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Phone number is required.",
+                    "Invalid Phone Number",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                phoneField.requestFocusInWindow();
+                return;
+            }
+
+            if (!phone.matches("[0-9+() -]{7,20}")) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Enter a valid phone number using 7 to 20 characters.\n"
+                        + "You may use digits, +, parentheses, spaces, or hyphens.",
+                    "Invalid Phone Number",
+                    JOptionPane.WARNING_MESSAGE
+                );
+                phoneField.requestFocusInWindow();
+                return;
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(
+                frame,
+                "Save this phone number to your profile?\n\n" + phone,
+                "Confirm Profile Update",
+                JOptionPane.YES_NO_OPTION
+            );
+
+            if (confirm != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            try {
+                boolean updated = dao.updateAgentPhoneNumber(agentId, phone);
+
+                if (updated) {
+                    agentProfile = dao.getAgentProfile(agentId);
+
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "Your phone number has been saved successfully.",
+                        "Settings Saved",
+                        JOptionPane.INFORMATION_MESSAGE
+                    );
+
+                    showContent(createSettings());
+
+                } else {
+                    JOptionPane.showMessageDialog(
+                        frame,
+                        "No profile was updated. Please check your agent account.",
+                        "Update Not Completed",
+                        JOptionPane.WARNING_MESSAGE
+                    );
+                }
+
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(
+                    frame,
+                    "Could not save your phone number:\n" + ex.getMessage(),
+                    "Save Failed",
+                    JOptionPane.ERROR_MESSAGE
+                );
+                ex.printStackTrace();
+            }
+        });
+
+        reloadButton.addActionListener(e -> showContent(createSettings()));
 
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottom.setOpaque(false);
+        bottom.add(reloadButton);
         bottom.add(saveButton);
 
-        section.add(form, BorderLayout.CENTER);
+        section.add(formContainer, BorderLayout.CENTER);
         section.add(bottom, BorderLayout.SOUTH);
 
         panel.add(section, BorderLayout.CENTER);
@@ -389,11 +1036,14 @@ public class AgentGUITest {
 
     // REUSABLE PAGE LAYOUT
     private static JPanel createPagePanel(
-            String titleText, String subtitleText) {
+            String titleText,
+            String subtitleText) {
 
         JPanel panel = new JPanel(new BorderLayout(15, 20));
         panel.setBackground(AppTheme.BACKGROUND);
-        panel.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+        panel.setBorder(
+            BorderFactory.createEmptyBorder(25, 25, 25, 25)
+        );
 
         JLabel title = new JLabel(titleText);
         title.setFont(new Font("Arial", Font.BOLD, 27));
@@ -413,13 +1063,14 @@ public class AgentGUITest {
     }
 
     private static JPanel createSection(String titleText) {
-
         JPanel section = new JPanel(new BorderLayout(12, 12));
         section.setBackground(AppTheme.CARD);
-        section.setBorder(BorderFactory.createCompoundBorder(
+        section.setBorder(
+            BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(AppTheme.BORDER),
                 BorderFactory.createEmptyBorder(18, 18, 18, 18)
-        ));
+            )
+        );
 
         JLabel title = new JLabel(titleText);
         title.setFont(new Font("Arial", Font.BOLD, 17));
@@ -430,19 +1081,7 @@ public class AgentGUITest {
         return section;
     }
 
-    private static JTable createTable(
-            String[] columns, Object[][] data) {
-
-        DefaultTableModel model =
-                new DefaultTableModel(data, columns) {
-                    private static final long serialVersionUID = 1L;
-
-                    @Override
-                    public boolean isCellEditable(int row, int column) {
-                        return false;
-                    }
-                };
-
+    private static JTable createTable(DefaultTableModel model) {
         JTable table = new JTable(model);
         table.setRowHeight(35);
         table.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -450,26 +1089,25 @@ public class AgentGUITest {
         table.setBackground(AppTheme.CARD);
         table.setSelectionBackground(AppTheme.ACCENT);
         table.setSelectionForeground(AppTheme.TEXT_PRIMARY);
+
         table.getTableHeader().setFont(
-                new Font("Arial", Font.BOLD, 13)
+            new Font("Arial", Font.BOLD, 13)
         );
         table.getTableHeader().setBackground(AppTheme.SIDEBAR);
         table.getTableHeader().setForeground(AppTheme.TEXT_PRIMARY);
+        table.setAutoCreateRowSorter(true);
 
         return table;
     }
 
     private static JButton createButton(String text) {
-
         JButton button = new JButton(text);
         button.setFont(new Font("Arial", Font.BOLD, 13));
         button.setForeground(Color.WHITE);
         button.setBackground(AppTheme.PRIMARY);
         button.setFocusPainted(false);
         button.setBorderPainted(false);
-        button.setCursor(
-                new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR)
-        );
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         return button;
     }

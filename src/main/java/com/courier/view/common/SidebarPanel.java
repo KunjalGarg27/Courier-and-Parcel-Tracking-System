@@ -1,9 +1,12 @@
+
 package com.courier.view.common;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.awt.Component;
+import java.awt.event.ActionListener;
 
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -31,7 +34,7 @@ public class SidebarPanel extends JPanel {
                 0, 0, 0, 1, AppTheme.BORDER));
         setLayout(new BorderLayout());
 
-        // Brand
+        // Brand section
         JPanel brandPanel = new JPanel(
                 new FlowLayout(FlowLayout.LEFT, 20, 20));
         brandPanel.setOpaque(false);
@@ -51,14 +54,15 @@ public class SidebarPanel extends JPanel {
         brandPanel.add(brand);
         add(brandPanel, BorderLayout.NORTH);
 
-        // Navigation
+        // Navigation section
         navigationPanel.setOpaque(false);
         navigationPanel.setBorder(BorderFactory.createEmptyBorder(
                 10, 12, 10, 12));
 
         if (menuItems != null) {
             for (String item : menuItems) {
-                if (item != null && !item.isBlank()) {
+                if (item != null && !item.isBlank()
+                        && !"Settings".equals(item)) {
                     navigationPanel.add(createMenuButton(item));
                 }
             }
@@ -66,7 +70,7 @@ public class SidebarPanel extends JPanel {
 
         add(navigationPanel, BorderLayout.CENTER);
 
-        // Bottom section
+        // Settings remains at the bottom for every role
         JPanel bottomPanel = new JPanel(
                 new FlowLayout(FlowLayout.LEFT, 20, 15));
         bottomPanel.setOpaque(false);
@@ -76,6 +80,7 @@ public class SidebarPanel extends JPanel {
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
+    // Default constructor for the Admin menu
     public SidebarPanel() {
         this(new String[] {
                 "Dashboard",
@@ -91,8 +96,10 @@ public class SidebarPanel extends JPanel {
         JButton button = new JButton(text);
 
         String iconFile = getIconFileName(text);
+
         if (!iconFile.isEmpty()) {
             ImageIcon icon = IconManager.getIcon(iconFile, 20, 20);
+
             if (icon != null) {
                 button.setIcon(icon);
             }
@@ -146,12 +153,13 @@ public class SidebarPanel extends JPanel {
         }
     }
 
+    // Connect a sidebar item to its corresponding screen
     public void setMenuAction(String menuText, Runnable action) {
         if (menuText == null || action == null) {
             return;
         }
 
-        for (java.awt.Component component : navigationPanel.getComponents()) {
+        for (Component component : navigationPanel.getComponents()) {
             if (component instanceof JButton button
                     && button.getText().equals(menuText)) {
                 replaceAction(button, action);
@@ -159,14 +167,14 @@ public class SidebarPanel extends JPanel {
             }
         }
 
+        // Settings is in the bottom section, not the navigation panel
         if ("Settings".equals(menuText) && settingsButton != null) {
             replaceAction(settingsButton, action);
         }
     }
 
     private void replaceAction(JButton button, Runnable action) {
-        for (java.awt.event.ActionListener listener
-                : button.getActionListeners()) {
+        for (ActionListener listener : button.getActionListeners()) {
             button.removeActionListener(listener);
         }
 

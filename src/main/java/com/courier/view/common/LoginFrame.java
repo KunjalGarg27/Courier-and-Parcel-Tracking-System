@@ -17,7 +17,8 @@ import com.courier.controller.UserController;
 import com.courier.model.User;
 import com.courier.view.admin.AdminFrame;
 import com.courier.view.customer.CustomerFrame;
-import com.courier.view.agent.AgentFrame;
+
+import com.courier.main.AgentGUITest;
 
 public class LoginFrame extends JFrame {
 
@@ -133,8 +134,7 @@ public class LoginFrame extends JFrame {
 	        }
 	
 	        case "DELIVERY_AGENT" -> {
-	            AgentFrame frame = new AgentFrame(user.getFullName());
-	            frame.setVisible(true);
+	            AgentGUITest.openForUser(user);
 	            dispose();
 	        }
 	
