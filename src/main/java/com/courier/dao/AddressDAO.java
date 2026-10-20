@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Types;
 
 import com.courier.model.Address;
 
@@ -14,7 +15,8 @@ public class AddressDAO {
     // Saves an address using the caller's transaction.
     public long createAddress(
             Connection con,
-            Address address) throws SQLException {
+            Address address
+    ) throws SQLException {
 
         String sql = """
                 INSERT INTO addresses (
@@ -45,13 +47,13 @@ public class AddressDAO {
             if (address.getLatitude() != null) {
                 ps.setBigDecimal(8, address.getLatitude());
             } else {
-                ps.setNull(8, java.sql.Types.DECIMAL);
+                ps.setNull(8, Types.DECIMAL);
             }
 
             if (address.getLongitude() != null) {
                 ps.setBigDecimal(9, address.getLongitude());
             } else {
-                ps.setNull(9, java.sql.Types.DECIMAL);
+                ps.setNull(9, Types.DECIMAL);
             }
 
             if (ps.executeUpdate() != 1) {

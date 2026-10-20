@@ -19,10 +19,11 @@ public class DeliveryAssignmentDAO {
             long assignedByUserId
     ) throws SQLException {
 
-        // 1. Resolve the ASSIGNED assignment status.
-        int assignedStatusId = findAssignmentStatusId(con, "ASSIGNED");
+        // 1. Find the ASSIGNED assignment status.
+        int assignedStatusId =
+                findAssignmentStatusId(con, "ASSIGNED");
 
-        // 2. Create the delivery assignment.
+        // 2. Insert the delivery assignment.
         long assignmentId = insertAssignment(
                 con,
                 shipmentId,
@@ -31,7 +32,7 @@ public class DeliveryAssignmentDAO {
                 assignedByUserId
         );
 
-        // 3. Record the shipment's ASSIGNED status in its tracking history.
+        // 3. Record the ASSIGNED event in shipment tracking history.
         trackingDAO.createTrackingEvent(
                 con,
                 shipmentId,
@@ -42,10 +43,10 @@ public class DeliveryAssignmentDAO {
                 assignedByUserId
         );
 
-        // 4. Update the shipment's modification timestamp.
+        // 4. Update the shipment modification timestamp.
         updateShipmentTimestamp(con, shipmentId);
 
-        // The calling service commits the transaction.
+        // The calling service commits or rolls back the transaction.
         return assignmentId;
     }
 

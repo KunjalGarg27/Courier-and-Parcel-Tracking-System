@@ -1,20 +1,17 @@
 
 package com.courier.service;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Locale;
 
 import org.mindrot.jbcrypt.BCrypt;
 
+import com.courier.dao.CustomerDAO;
 import com.courier.dao.UserDAO;
 import com.courier.model.User;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.util.Locale;
-
-import com.courier.dao.CustomerDAO;
 import com.courier.util.DBConnection;
 
 public class UserService {
@@ -72,84 +69,88 @@ public class UserService {
         return BCrypt.hashpw(password, BCrypt.gensalt(12));
     }
 
-	public long registerCustomer(
-	        String fullName,
-	        String email,
-	        String phone,
-	        String password) throws SQLException {
-	
-	    if (fullName == null || fullName.isBlank()) {
-	        throw new IllegalArgumentException("Name is required.");
-	    }
-	
-	    if (email == null || email.isBlank()
-	            || !email.trim().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
-	        throw new IllegalArgumentException("Enter a valid email.");
-	    }
-	
-	    if (phone == null || !phone.trim().matches("^[0-9+() -]{7,20}$")) {
-	        throw new IllegalArgumentException("Enter a valid phone number.");
-	    }
-	
-	    String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
-	    String normalizedName = fullName.trim();
-	    String normalizedPhone = phone.trim();
-	
-	    String passwordHash = hashPassword(password);
-	
-	    try (Connection con = DBConnection.getConnection()) {
-	
-	        con.setAutoCommit(false);
-	
-	        try {
-	            // Get the CUSTOMER role ID instead of assuming its numeric ID.
-	            int customerRoleId;
-	
-	            String roleSql =
-	                    "SELECT role_id FROM roles WHERE role_name = ?";
-	
-	            try (PreparedStatement ps = con.prepareStatement(roleSql)) {
-	                ps.setString(1, "CUSTOMER");
-	
-	                try (ResultSet rs = ps.executeQuery()) {
-	                    if (!rs.next()) {
-	                        throw new SQLException(
-	                                "CUSTOMER role is missing from the database.");
-	                    }
-	
-	                    customerRoleId = rs.getInt("role_id");
-	                }
-	            }
-	
-	            User user = new User(
-	                    0,
-	                    customerRoleId,
-	                    normalizedName,
-	                    normalizedEmail,
-	                    passwordHash,
-	                    "ACTIVE"
-	            );
-	
-	            long userId = userDAO.createUser(con, user);
-	
-	            customerDAO.createCustomer(
-	                    con,
-	                    userId,
-	                    normalizedPhone
-	            );
-	
-	            con.commit();
-	            return userId;
-	
-	        } catch (SQLException | RuntimeException e) {
-	            try {
-	                con.rollback();
-	            } catch (SQLException rollbackError) {
-	                e.addSuppressed(rollbackError);
-	            }
-	            throw e;
-	        }
-	    }
-	}
+    public long registerCustomer(
+            String fullName,
+            String email,
+            String phone,
+            String password) throws SQLException {
 
+        if (fullName == null || fullName.isBlank()) {
+            throw new IllegalArgumentException("Name is required.");
+        }
+
+        if (email == null || email.isBlank()
+                || !email.trim().matches(
+                        "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            throw new IllegalArgumentException("Enter a valid email.");
+        }
+
+        if (phone == null
+                || !phone.trim().matches("^[0-9+() -]{7,20}$")) {
+            throw new IllegalArgumentException(
+                    "Enter a valid phone number."
+            );
+        }
+
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+        String normalizedName = fullName.trim();
+        String normalizedPhone = phone.trim();
+
+        String passwordHash = hashPassword(password);
+
+        try (Connection con = DBConnection.getConnection()) {
+            con.setAutoCommit(false);
+
+            try {
+                // Retrieve the CUSTOMER role ID without assuming its value.
+                int customerRoleId;
+
+                String roleSql =
+                        "SELECT role_id FROM roles WHERE role_name = ?";
+
+                try (PreparedStatement ps = con.prepareStatement(roleSql)) {
+                    ps.setString(1, "CUSTOMER");
+
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next()) {
+                            throw new SQLException(
+                                    "CUSTOMER role is missing from the database."
+                            );
+                        }
+
+                        customerRoleId = rs.getInt("role_id");
+                    }
+                }
+
+                User user = new User(
+                        0,
+                        customerRoleId,
+                        normalizedName,
+                        normalizedEmail,
+                        passwordHash,
+                        "ACTIVE"
+                );
+
+                long userId = userDAO.createUser(con, user);
+
+                customerDAO.createCustomer(
+                        con,
+                        userId,
+                        normalizedPhone
+                );
+
+                con.commit();
+                return userId;
+
+            } catch (SQLException | RuntimeException e) {
+                try {
+                    con.rollback();
+                } catch (SQLException rollbackError) {
+                    e.addSuppressed(rollbackError);
+                }
+
+                throw e;
+            }
+        }
+    }
 }
