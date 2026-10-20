@@ -4,21 +4,23 @@ import java.awt.BorderLayout;
 
 import javax.swing.JPanel;
 
-import com.courier.view.admin.TrackingPanel;
+import com.courier.model.User;
 import com.courier.view.common.BaseFrame;
 import com.courier.view.common.SidebarPanel;
 
 public class CustomerFrame extends BaseFrame {
 
+    private final User user;
     private SidebarPanel sidebar;
 
-    public CustomerFrame(String customerName) {
+    public CustomerFrame(User user) {
 
-        super("Customer Dashboard", customerName, "Customer");
+        super("Customer Dashboard", user.getFullName(), "Customer");
+
+        this.user = user;
 
         createSidebar();
 
-        // Show Dashboard when CustomerFrame opens
         showCustomerPanel(new CustomerDashboardPanel());
     }
 
@@ -37,61 +39,28 @@ public class CustomerFrame extends BaseFrame {
 
         add(sidebar, BorderLayout.WEST);
 
-        // Dashboard
-        sidebar.setMenuAction(
-                "Dashboard",
-                () -> showCustomerPanel(
-                        new CustomerDashboardPanel()
-                )
-        );
+        sidebar.setMenuAction("Dashboard",
+                () -> showCustomerPanel(new CustomerDashboardPanel()));
 
-        // Book Shipment
-        sidebar.setMenuAction(
-                "Book Shipment",
+        sidebar.setMenuAction("Book Shipment",
                 () -> showCustomerPanel(
-                        new BookShipmentPanel()
-                )
-        );
+                        new BookShipmentPanel(user.getUserId())));
 
-        // My Shipments
-        sidebar.setMenuAction(
-                "My Shipments",
-                () -> showCustomerPanel(
-                        new MyShipmentsPanel()
-                )
-        );
+        sidebar.setMenuAction("My Shipments",
+                () -> showCustomerPanel(new MyShipmentsPanel()));
 
-        // Tracking
-        sidebar.setMenuAction(
-                "Tracking",
-                () -> showCustomerPanel(
-                        new TrackingPanel()
-                )
-        );
+        // Uses the customer TrackingPanel from this same package.
+        sidebar.setMenuAction("Tracking",
+                () -> showCustomerPanel(new TrackingPanel()));
 
-        // Delivery History
-        sidebar.setMenuAction(
-                "Delivery History",
-                () -> showCustomerPanel(
-                        new DeliveryHistoryPanel()
-                )
-        );
+        sidebar.setMenuAction("Delivery History",
+                () -> showCustomerPanel(new DeliveryHistoryPanel()));
 
-        // Profile
-        sidebar.setMenuAction(
-                "Profile",
-                () -> showCustomerPanel(
-                        new CustomerProfilePanel()
-                )
-        );
+        sidebar.setMenuAction("Profile",
+                () -> showCustomerPanel(new CustomerProfilePanel()));
 
-        // Settings
-        sidebar.setMenuAction(
-                "Settings",
-                () -> showCustomerPanel(
-                        new CustomerSettingsPanel()
-                )
-        );
+        sidebar.setMenuAction("Settings",
+                () -> showCustomerPanel(new CustomerSettingsPanel()));
     }
 
     public void showCustomerPanel(JPanel panel) {

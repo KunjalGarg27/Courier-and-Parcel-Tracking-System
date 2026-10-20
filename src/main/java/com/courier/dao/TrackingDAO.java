@@ -164,4 +164,33 @@ public class TrackingDAO {
             }
         }
     }
+    // Returns {pickupCity, deliveryCity} for the shipment.
+    public String[] findRouteCities(long shipmentId) throws SQLException {
+
+        String sql = """
+                SELECT pa.city AS pickup_city,
+                       da.city AS delivery_city
+                FROM shipments s
+                JOIN addresses pa ON pa.address_id = s.pickup_address_id
+                JOIN addresses da ON da.address_id = s.delivery_address_id
+                WHERE s.shipment_id = ?
+                """;
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setLong(1, shipmentId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new String[] {
+                            rs.getString("pickup_city"),
+                            rs.getString("delivery_city")
+                    };
+                }
+            }
+        }
+
+        return new String[] {null, null};
+    }
 }
