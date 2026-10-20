@@ -1,3 +1,4 @@
+
 package com.courier.view.common;
 
 import com.courier.util.IconManager;
@@ -17,11 +18,12 @@ import com.courier.util.AppTheme;
 import com.courier.util.FontManager;
 
 public class SidebarPanel extends JPanel {
-	private JPanel navigationPanel;
-	private JButton settingsButton;
+    private JPanel navigationPanel;
+    private JButton settingsButton;
+
     public SidebarPanel(String[] menuItems) {
 
-    	navigationPanel = new JPanel(new GridLayout(0, 1, 0, 8));
+        navigationPanel = new JPanel(new GridLayout(0, 1, 0, 8));
         setPreferredSize(new Dimension(220, 0));
         setBackground(AppTheme.SURFACE);
         setBorder(
@@ -37,7 +39,7 @@ public class SidebarPanel extends JPanel {
         // =========================
 
         JPanel brandPanel = new JPanel(new FlowLayout(
-                FlowLayout.LEFT, 20, 20
+            FlowLayout.LEFT, 20, 20
         ));
 
         brandPanel.setOpaque(false);
@@ -58,12 +60,10 @@ public class SidebarPanel extends JPanel {
 
         add(brandPanel, BorderLayout.NORTH);
 
-
         // =========================
         // NAVIGATION
         // =========================
 
-        
         navigationPanel.setOpaque(false);
 
         navigationPanel.setBorder(
@@ -73,18 +73,20 @@ public class SidebarPanel extends JPanel {
         );
 
         for (String item : menuItems) {
-            navigationPanel.add(createMenuButton(item));
+            // Settings is displayed only in the bottom section.
+            if (!"Settings".equals(item)) {
+                navigationPanel.add(createMenuButton(item));
+            }
         }
 
         add(navigationPanel, BorderLayout.CENTER);
-
 
         // =========================
         // BOTTOM
         // =========================
 
         JPanel bottomPanel = new JPanel(new FlowLayout(
-                FlowLayout.LEFT, 20, 15
+            FlowLayout.LEFT, 20, 15
         ));
 
         bottomPanel.setOpaque(false);
@@ -93,23 +95,20 @@ public class SidebarPanel extends JPanel {
         bottomPanel.add(settingsButton);
 
         add(bottomPanel, BorderLayout.SOUTH);
-        
-        
     }
 
-
     private JButton createMenuButton(String text) {
-    	JButton button = new JButton(text);
+        JButton button = new JButton(text);
 
-    	String iconFile = getIconFileName(text);
+        String iconFile = getIconFileName(text);
 
-    	ImageIcon icon = IconManager.getIcon(iconFile, 20, 20);
+        ImageIcon icon = IconManager.getIcon(iconFile, 20, 20);
 
-    	if (icon != null) {
-    	    button.setIcon(icon);
-    	}
+        if (icon != null) {
+            button.setIcon(icon);
+        }
 
-    	button.setIconTextGap(12);
+        button.setIconTextGap(12);
 
         button.setFont(FontManager.medium(14));
         button.setForeground(AppTheme.TEXT_PRIMARY);
@@ -122,7 +121,7 @@ public class SidebarPanel extends JPanel {
 
         return button;
     }
-    
+
     public SidebarPanel() {
         this(new String[] {
             "Dashboard",
@@ -134,37 +133,37 @@ public class SidebarPanel extends JPanel {
         });
     }
 
-private String getIconFileName(String text) {
+    private String getIconFileName(String text) {
 
-    switch (text) {
+        switch (text) {
 
-        case "Dashboard":
-            return "dashboard-panel.png";
+            case "Dashboard":
+                return "dashboard-panel.png";
 
-        case "Tracking":
-            return "track.png";
+            case "Tracking":
+                return "track.png";
 
-        case "My Deliveries":
-        case "Shipments":
-            return "box-alt.png";
+            case "My Deliveries":
+            case "Shipments":
+                return "box-alt.png";
 
-        case "Delivery History":
-        case "Reports":
-            return "data-report.png";
+            case "Delivery History":
+            case "Reports":
+                return "data-report.png";
 
-        case "Customers":
-            return "people-carry-box.png";
+            case "Customers":
+                return "people-carry-box.png";
 
-        case "Delivery Agents":
-            return "delivery-man.png";
+            case "Delivery Agents":
+                return "delivery-man.png";
 
-        case "Settings":
-            return "settings.png";
+            case "Settings":
+                return "settings.png";
 
-        default:
-            return "";
+            default:
+                return "";
+        }
     }
-}
 
     public void setMenuAction(
             String menuText,
@@ -190,7 +189,7 @@ private String getIconFileName(String text) {
             }
         }
 
-        // Settings is located in the bottom section
+        // Settings is located in the bottom section.
         if ("Settings".equals(menuText)
                 && settingsButton != null) {
 
