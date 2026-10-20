@@ -137,6 +137,24 @@ public class UserDAO {
 	        throw new SQLException("No user ID was generated.");
 	    }
 	}
+    public boolean updatePasswordHash(String email, String passwordHash)
+            throws SQLException {
+
+        String sql = """
+            UPDATE users
+            SET password_hash = ?
+            WHERE email = ?
+            """;
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, passwordHash);
+            ps.setString(2, email.trim().toLowerCase(java.util.Locale.ROOT));
+
+            return ps.executeUpdate() == 1;
+        }
+    }
 
  
 }

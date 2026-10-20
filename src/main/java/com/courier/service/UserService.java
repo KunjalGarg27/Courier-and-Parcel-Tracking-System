@@ -14,6 +14,15 @@ import com.courier.dao.UserDAO;
 import com.courier.model.User;
 import com.courier.util.DBConnection;
 
+import java.sql.PreparedStatement;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Locale;
+
+import org.mindrot.jbcrypt.BCrypt;
+
+import com.courier.util.DBConnection;
+
 public class UserService {
 
     private final UserDAO userDAO;
@@ -42,11 +51,52 @@ public class UserService {
             return null;
         }
 
-        if (!BCrypt.checkpw(password, user.getPasswordHash())) {
+        try {
+            if (user.getPasswordHash() == null
+                    || !BCrypt.checkpw(password, user.getPasswordHash())) {
+                return null;
+            }
+        } catch (IllegalArgumentException e) {
+            // An invalid or placeholder BCrypt hash must not allow login.
             return null;
         }
 
         return user;
+    }
+
+    public User authenticateAsRole(
+            String email,
+            String password,
+            String roleName) throws SQLException {
+
+        if (roleName == null || roleName.isBlank()) {
+            throw new IllegalArgumentException("Select a role.");
+        }
+
+        User user = authenticate(email, password);
+
+        if (user == null) {
+            return null;
+        }
+
+        String sql =
+                "SELECT 1 FROM roles WHERE role_id = ? AND role_name = ?";
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, user.getRoleId());
+            ps.setString(2, roleName.trim().toUpperCase(Locale.ROOT));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? user : null;
+            }
+        }
+    }
+
+    public User authenticateCustomer(String email, String password)
+            throws SQLException {
+        return authenticateAsRole(email, password, "CUSTOMER");
     }
 
     public boolean emailExists(String email) throws SQLException {
@@ -87,24 +137,19 @@ public class UserService {
 
         if (phone == null
                 || !phone.trim().matches("^[0-9+() -]{7,20}$")) {
-            throw new IllegalArgumentException(
-                    "Enter a valid phone number."
-            );
+            throw new IllegalArgumentException("Enter a valid phone number.");
         }
 
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
         String normalizedName = fullName.trim();
         String normalizedPhone = phone.trim();
-
         String passwordHash = hashPassword(password);
 
         try (Connection con = DBConnection.getConnection()) {
             con.setAutoCommit(false);
 
             try {
-                // Retrieve the CUSTOMER role ID without assuming its value.
                 int customerRoleId;
-
                 String roleSql =
                         "SELECT role_id FROM roles WHERE role_name = ?";
 
@@ -151,6 +196,33 @@ public class UserService {
 
                 throw e;
             }
+        }
+    }
+    public boolean changePassword(String email, String newPassword)
+            throws SQLException {
+
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+
+        // Reuse existing password validation and BCrypt hashing.
+        String passwordHash = hashPassword(newPassword);
+        String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
+
+        String sql = """
+                UPDATE users
+                SET password_hash = ?
+                WHERE email = ?
+                  AND account_status = 'ACTIVE'
+                """;
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, passwordHash);
+            ps.setString(2, normalizedEmail);
+
+            return ps.executeUpdate() == 1;
         }
     }
 }

@@ -1,19 +1,23 @@
 package com.courier.view.customer;
 
 import java.awt.BorderLayout;
-import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.GridLayout;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Locale;
 
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.SwingConstants;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 
+import com.courier.controller.TrackingController;
+import com.courier.model.Shipment;
+import com.courier.model.TrackingResult;
 import com.courier.util.AppTheme;
 import com.courier.util.FontManager;
 import com.courier.view.common.components.AppButton;
@@ -22,160 +26,194 @@ import com.courier.view.common.components.AppTextField;
 
 public class TrackingPanel extends JPanel {
 
-    private final AppTextField trackingField;
-    private final JLabel statusLabel;
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", Locale.ENGLISH);
+
+    private final TrackingController trackingController =
+            new TrackingController();
+
+    private final AppTextField trackingField = new AppTextField(20);
+    private final JLabel messageLabel =
+            new JLabel("Enter your tracking number to begin.");
+    private final JTextArea detailsArea = readOnlyArea();
+    private final JTextArea historyArea = readOnlyArea();
+    private final RouteMapPanel routeMap = new RouteMapPanel();
 
     public TrackingPanel() {
+
         setLayout(new BorderLayout(20, 20));
         setBackground(AppTheme.BACKGROUND);
         setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
 
-        // Page title
         JLabel title = new JLabel("Track Shipment");
         title.setFont(FontManager.semiBold(24));
         title.setForeground(AppTheme.TEXT_PRIMARY);
         add(title, BorderLayout.NORTH);
 
-        // Main content
-        JPanel content = new JPanel(new BorderLayout(20, 20));
-        content.setBackground(AppTheme.BACKGROUND);
-
-        // Tracking form card
-        AppCard trackingCard = new AppCard();
-        trackingCard.setLayout(new BorderLayout(12, 12));
-        trackingCard.setBorder(
-                BorderFactory.createEmptyBorder(20, 20, 20, 20)
-        );
-
-        JLabel trackingLabel = new JLabel("Tracking ID");
-        trackingLabel.setFont(FontManager.medium(16));
-        trackingLabel.setForeground(AppTheme.TEXT_PRIMARY);
-
-        trackingField = new AppTextField(20);
-
-        AppButton trackButton = new AppButton("Track Shipment");
-
-        statusLabel = new JLabel("Enter a tracking ID to begin.");
-        statusLabel.setForeground(AppTheme.TEXT_SECONDARY);
-
-        JPanel form = new JPanel(new BorderLayout(8, 8));
-        form.setOpaque(false);
-        form.add(trackingLabel, BorderLayout.NORTH);
-        form.add(trackingField, BorderLayout.CENTER);
-
-        JPanel formContent = new JPanel(new BorderLayout(15, 15));
-        formContent.setOpaque(false);
-        formContent.add(form, BorderLayout.NORTH);
-        formContent.add(trackButton, BorderLayout.CENTER);
-        formContent.add(statusLabel, BorderLayout.SOUTH);
-
-        trackingCard.add(formContent, BorderLayout.NORTH);
-        trackingCard.setPreferredSize(new Dimension(320, 350));
-
-        // Demo tracking action
-        trackButton.addActionListener(e -> {
-            String id = trackingField.getText().trim();
-
-            if (id.isEmpty()) {
-                statusLabel.setText("Please enter a Tracking ID.");
-            } else {
-                statusLabel.setText(
-                        "Demo only: " + id
-                                + " — live tracking unavailable."
-                );
-            }
-        });
-
-        // Map-style placeholder card
-        AppCard mapCard = new AppCard();
-        mapCard.setLayout(new BorderLayout(10, 10));
-        mapCard.setBorder(
-                BorderFactory.createEmptyBorder(15, 15, 15, 15)
-        );
-
-        JLabel mapTitle = new JLabel(
-                "Delivery Agent Location",
-                SwingConstants.CENTER
-        );
-        mapTitle.setFont(FontManager.medium(16));
-        mapTitle.setForeground(AppTheme.TEXT_PRIMARY);
-
-        DemoMapPanel mapPanel = new DemoMapPanel();
-
-        mapCard.add(mapTitle, BorderLayout.NORTH);
-        mapCard.add(mapPanel, BorderLayout.CENTER);
-        mapCard.setPreferredSize(new Dimension(450, 350));
-
-        // Arrange the cards
-        content.add(trackingCard, BorderLayout.CENTER);
-        content.add(mapCard, BorderLayout.EAST);
-
+        JPanel content = new JPanel(new GridLayout(1, 2, 20, 0));
+        content.setOpaque(false);
+        content.add(buildSearchCard());
+        content.add(buildRightColumn());
         add(content, BorderLayout.CENTER);
     }
 
-    // Decorative demo map panel
-    private static class DemoMapPanel extends JPanel {
+    private AppCard buildSearchCard() {
 
-        DemoMapPanel() {
-            setPreferredSize(new Dimension(400, 300));
-            setBackground(new Color(242, 239, 230));
+        JLabel label = new JLabel("Tracking number");
+        label.setFont(FontManager.medium(16));
+        label.setForeground(AppTheme.TEXT_PRIMARY);
 
-            setBorder(BorderFactory.createLineBorder(
-                    new Color(220, 214, 202)
-            ));
+        AppButton trackButton = new AppButton("Track Shipment");
+        trackButton.setForeground(Color.WHITE);
+        trackButton.addActionListener(e -> search());
+        trackingField.addActionListener(e -> search());
+
+        messageLabel.setFont(FontManager.regular(13));
+        messageLabel.setForeground(AppTheme.TEXT_SECONDARY);
+
+        JPanel form = new JPanel(new GridLayout(0, 1, 0, 8));
+        form.setOpaque(false);
+        form.add(label);
+        form.add(trackingField);
+        form.add(trackButton);
+        form.add(messageLabel);
+
+        AppCard card = new AppCard();
+        card.setLayout(new BorderLayout(0, 12));
+        card.add(form, BorderLayout.NORTH);
+        card.add(new JScrollPane(detailsArea), BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel buildRightColumn() {
+
+        JLabel mapTitle = new JLabel("Shipment route");
+        mapTitle.setFont(FontManager.medium(16));
+        mapTitle.setForeground(AppTheme.TEXT_PRIMARY);
+
+        AppCard mapCard = new AppCard();
+        mapCard.setLayout(new BorderLayout(0, 12));
+        mapCard.add(mapTitle, BorderLayout.NORTH);
+        mapCard.add(routeMap, BorderLayout.CENTER);
+
+        JPanel column = new JPanel(new GridLayout(2, 1, 0, 20));
+        column.setOpaque(false);
+        column.add(mapCard);
+        column.add(buildHistoryCard());
+        return column;
+    }
+
+    private AppCard buildHistoryCard() {
+
+        JLabel label = new JLabel("Tracking history");
+        label.setFont(FontManager.medium(16));
+        label.setForeground(AppTheme.TEXT_PRIMARY);
+
+        AppCard card = new AppCard();
+        card.setLayout(new BorderLayout(0, 12));
+        card.add(label, BorderLayout.NORTH);
+        card.add(new JScrollPane(historyArea), BorderLayout.CENTER);
+        return card;
+    }
+
+    private void search() {
+
+        detailsArea.setText("");
+        historyArea.setText("");
+        routeMap.clear();
+
+        try {
+            TrackingResult result =
+                    trackingController.track(trackingField.getText());
+
+            if (result == null) {
+                showMessage("No shipment found for that tracking number.",
+                        AppTheme.DANGER);
+                return;
+            }
+
+            showResult(result);
+            routeMap.showRoute(result.getPickupCity(),
+                    result.getDeliveryCity(),
+                    result.getCurrentStatus());
+            showMessage("Shipment found.", AppTheme.SUCCESS);
+
+        } catch (IllegalArgumentException e) {
+            showMessage(e.getMessage(), AppTheme.DANGER);
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            showMessage("Could not load tracking details. "
+                    + "Check the database connection.", AppTheme.DANGER);
+        }
+    }
+
+    private void showResult(TrackingResult result) {
+
+        Shipment s = result.getShipment();
+
+        StringBuilder details = new StringBuilder();
+        details.append("Tracking number: ").append(s.getTrackingNumber()).append("\n");
+        details.append("Current status: ")
+                .append(result.getCurrentStatus().replace('_', ' ')).append("\n\n");
+        details.append("Sender: ").append(s.getSenderName());
+        if (s.getSenderPhone() != null) {
+            details.append(" (").append(s.getSenderPhone()).append(")");
+        }
+        details.append("\n");
+        details.append("Receiver: ").append(s.getReceiverName());
+        if (s.getReceiverPhone() != null) {
+            details.append(" (").append(s.getReceiverPhone()).append(")");
+        }
+        details.append("\n\n");
+        details.append("Package: ").append(
+                s.getPackageDescription() == null
+                        ? "-" : s.getPackageDescription()).append("\n");
+        details.append("Weight: ").append(
+                s.getWeightKg() == null
+                        ? "-" : s.getWeightKg().toPlainString() + " kg").append("\n");
+        details.append("Booked on: ").append(format(s.getCreatedAt())).append("\n");
+        details.append("Expected delivery: ").append(
+                s.getExpectedDeliveryAt() == null
+                        ? "Not available yet"
+                        : format(s.getExpectedDeliveryAt())).append("\n");
+
+        if (s.getDeliveredAt() != null) {
+            details.append("Delivered on: ")
+                    .append(format(s.getDeliveredAt())).append("\n");
         }
 
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
+        detailsArea.setText(details.toString());
+        detailsArea.setCaretPosition(0);
 
-            Graphics2D g2 = (Graphics2D) g.create();
+        List<String> history = result.getHistory();
 
-            g2.setRenderingHint(
-                    RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON
-            );
-
-            int w = getWidth();
-            int h = getHeight();
-
-            // Decorative roads
-            g2.setColor(new Color(220, 214, 202));
-            g2.setStroke(new BasicStroke(
-                    18,
-                    BasicStroke.CAP_ROUND,
-                    BasicStroke.JOIN_ROUND
-            ));
-
-            g2.drawLine(-10, h / 3, w + 10, h / 2);
-            g2.drawLine(w / 4, -10, w * 3 / 4, h + 10);
-            g2.drawLine(-10, h * 4 / 5, w + 10, h * 2 / 3);
-
-            // Demo delivery agent marker
-            int x = w / 2;
-            int y = h / 2;
-
-            g2.setColor(new Color(85, 105, 49));
-            g2.fillOval(x - 15, y - 15, 30, 30);
-
-            g2.setColor(Color.WHITE);
-            g2.fillOval(x - 6, y - 6, 12, 12);
-
-            // Map label
-            g2.setColor(new Color(55, 65, 45));
-            g2.setFont(new Font(
-                    "SansSerif",
-                    Font.PLAIN,
-                    12
-            ));
-
-            g2.drawString(
-                    "Demo location — not GPS",
-                    12,
-                    h - 15
-            );
-
-            g2.dispose();
+        if (history.isEmpty()) {
+            historyArea.setText("No tracking events recorded yet.");
+        } else {
+            historyArea.setText(String.join("\n\n", history));
         }
+        historyArea.setCaretPosition(0);
+    }
+
+    private String format(LocalDateTime time) {
+        return time == null ? "-" : time.format(DATE_FORMAT);
+    }
+
+    private void showMessage(String text, Color color) {
+        messageLabel.setText(text);
+        messageLabel.setForeground(color);
+    }
+
+    private static JTextArea readOnlyArea() {
+        JTextArea area = new JTextArea();
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setFont(FontManager.regular(14));
+        area.setForeground(AppTheme.TEXT_PRIMARY);
+        area.setBackground(AppTheme.SURFACE);
+        area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        return area;
     }
 }

@@ -25,6 +25,10 @@ public class BaseFrame extends JFrame {
         initializeFrame(title, user, role);
     }
 
+    public BaseFrame() {
+
+    }
+
     private void initializeFrame(String title, String user, String role) {
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);

@@ -32,4 +32,16 @@ public class UserController {
         return userService.registerCustomer(
                 fullName, email, phone, password);
     }
+    public boolean changePassword(String email, String newPassword)
+            throws SQLException {
+        return userService.changePassword(email, newPassword);
+    }
+    public User loginCustomer(String email, String password)
+            throws SQLException {
+        return userService.authenticateCustomer(email, password);
+    }
+    public User loginAsRole(String email, String password, String roleName)
+            throws SQLException {
+        return userService.authenticateAsRole(email, password, roleName);
+    }
 }
