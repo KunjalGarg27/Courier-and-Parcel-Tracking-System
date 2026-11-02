@@ -1,4 +1,3 @@
-
 package com.courier.dao;
 
 import java.sql.Connection;
@@ -6,13 +5,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import com.courier.model.Shipment;
 import com.courier.util.DBConnection;
 
 public class TrackingDAO {
+
+    private static final DateTimeFormatter DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", Locale.ENGLISH);
 
     public Shipment findShipmentByTrackingNumber(String trackingNumber)
             throws SQLException {
@@ -46,7 +50,7 @@ public class TrackingDAO {
         try (Connection con = DBConnection.getConnection();
              PreparedStatement ps = con.prepareStatement(sql)) {
 
-            ps.setString(1, trackingNumber.trim().toUpperCase());
+            ps.setString(1, trackingNumber.trim().toUpperCase(Locale.ROOT));
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
@@ -56,21 +60,16 @@ public class TrackingDAO {
                 Shipment shipment = new Shipment();
 
                 shipment.setShipmentId(rs.getLong("shipment_id"));
-                shipment.setTrackingNumber(
-                        rs.getString("tracking_number"));
+                shipment.setTrackingNumber(rs.getString("tracking_number"));
                 shipment.setCustomerId(rs.getLong("customer_id"));
                 shipment.setSenderName(rs.getString("sender_name"));
                 shipment.setSenderPhone(rs.getString("sender_phone"));
                 shipment.setReceiverName(rs.getString("receiver_name"));
                 shipment.setReceiverPhone(rs.getString("receiver_phone"));
-
-                shipment.setPickupAddressId(
-                        rs.getLong("pickup_address_id"));
-                shipment.setDeliveryAddressId(
-                        rs.getLong("delivery_address_id"));
+                shipment.setPickupAddressId(rs.getLong("pickup_address_id"));
+                shipment.setDeliveryAddressId(rs.getLong("delivery_address_id"));
                 shipment.setServiceTypeId(rs.getInt("service_type_id"));
-                shipment.setPackageDescription(
-                        rs.getString("package_description"));
+                shipment.setPackageDescription(rs.getString("package_description"));
                 shipment.setWeightKg(rs.getBigDecimal("weight_kg"));
 
                 Timestamp createdAt = rs.getTimestamp("created_at");
@@ -83,17 +82,14 @@ public class TrackingDAO {
                     shipment.setUpdatedAt(updatedAt.toLocalDateTime());
                 }
 
-                Timestamp expectedAt =
-                        rs.getTimestamp("expected_delivery_at");
+                Timestamp expectedAt = rs.getTimestamp("expected_delivery_at");
                 if (expectedAt != null) {
-                    shipment.setExpectedDeliveryAt(
-                            expectedAt.toLocalDateTime());
+                    shipment.setExpectedDeliveryAt(expectedAt.toLocalDateTime());
                 }
 
                 Timestamp deliveredAt = rs.getTimestamp("delivered_at");
                 if (deliveredAt != null) {
-                    shipment.setDeliveredAt(
-                            deliveredAt.toLocalDateTime());
+                    shipment.setDeliveredAt(deliveredAt.toLocalDateTime());
                 }
 
                 return shipment;
@@ -127,19 +123,24 @@ public class TrackingDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String status = rs.getString("status_name");
-                    String location =
-                            rs.getString("location_description");
+                    if (status != null) {
+                        status = status.replace('_', ' ');
+                    } else {
+                        status = "UNKNOWN";
+                    }
+
+                    String location = rs.getString("location_description");
                     String notes = rs.getString("notes");
                     Timestamp timestamp = rs.getTimestamp("event_time");
 
-                    StringBuilder entry = new StringBuilder();
-
-                    entry.append(timestamp == null
+                    String eventTime = timestamp == null
                             ? "Unknown time"
-                            : timestamp.toLocalDateTime());
+                            : timestamp.toLocalDateTime().format(DATE_FORMAT);
 
-                    entry.append(" | ")
-                         .append(status == null ? "UNKNOWN" : status);
+                    StringBuilder entry = new StringBuilder();
+                    entry.append(eventTime)
+                         .append(" | ")
+                         .append(status);
 
                     if (location != null && !location.isBlank()) {
                         entry.append(" | ").append(location);
@@ -180,6 +181,10 @@ public class TrackingDAO {
         }
     }
 
+    /**
+     * Returns the latest recorded location details for a shipment.
+     * Used by the Admin tracking interface.
+     */
     public String findLatestLocation(long shipmentId) throws SQLException {
 
         String sql = """
@@ -208,12 +213,9 @@ public class TrackingDAO {
                     return "No location has been recorded for this shipment yet.";
                 }
 
-                String description =
-                        rs.getString("location_description");
-                java.math.BigDecimal latitude =
-                        rs.getBigDecimal("latitude");
-                java.math.BigDecimal longitude =
-                        rs.getBigDecimal("longitude");
+                String description = rs.getString("location_description");
+                java.math.BigDecimal latitude = rs.getBigDecimal("latitude");
+                java.math.BigDecimal longitude = rs.getBigDecimal("longitude");
                 Timestamp timestamp = rs.getTimestamp("event_time");
 
                 StringBuilder result = new StringBuilder();
@@ -239,7 +241,7 @@ public class TrackingDAO {
                     }
 
                     result.append("Recorded at: ")
-                          .append(timestamp.toLocalDateTime());
+                          .append(timestamp.toLocalDateTime().format(DATE_FORMAT));
                 }
 
                 return result.isEmpty()
@@ -247,5 +249,41 @@ public class TrackingDAO {
                         : result.toString();
             }
         }
+    }
+
+    /**
+     * Returns the pickup and delivery city names for the customer route map.
+     * Result indexes: 0 = pickup city, 1 = delivery city.
+     */
+    public String[] findRouteCities(long shipmentId) throws SQLException {
+
+        String sql = """
+                SELECT
+                    pa.city AS pickup_city,
+                    da.city AS delivery_city
+                FROM shipments s
+                JOIN addresses pa
+                    ON pa.address_id = s.pickup_address_id
+                JOIN addresses da
+                    ON da.address_id = s.delivery_address_id
+                WHERE s.shipment_id = ?
+                """;
+
+        try (Connection con = DBConnection.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setLong(1, shipmentId);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new String[] {
+                            rs.getString("pickup_city"),
+                            rs.getString("delivery_city")
+                    };
+                }
+            }
+        }
+
+        return new String[] { null, null };
     }
 }

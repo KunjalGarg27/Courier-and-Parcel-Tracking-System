@@ -2,18 +2,14 @@ package com.courier.main;
 
 import javax.swing.SwingUtilities;
 
-import com.courier.view.customer.CustomerFrame;
+import com.courier.view.common.LoginFrame;
 
 public class CustomerGUITest {
 
     public static void main(String[] args) {
-
         SwingUtilities.invokeLater(() -> {
-
-            CustomerFrame frame =
-                    new CustomerFrame("Charu");
-
-            frame.setVisible(true);
+            LoginFrame loginFrame = new LoginFrame();
+            loginFrame.setVisible(true);
         });
     }
 }

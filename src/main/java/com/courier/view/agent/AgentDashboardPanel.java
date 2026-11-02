@@ -2,10 +2,10 @@
 package com.courier.view.agent;
 
 import java.awt.BorderLayout;
-import java.awt.GridLayout;
-import java.awt.Font;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridLayout;
 import java.sql.SQLException;
 import java.util.Map;
 
@@ -29,16 +29,17 @@ public class AgentDashboardPanel extends JPanel {
     private JLabel deliveredValue;
     private JLabel overviewText;
 
+    /** Compatibility constructor for standalone testing only. */
     public AgentDashboardPanel() {
         this(1L);
     }
 
     public AgentDashboardPanel(long agentId) {
-
         setLayout(new BorderLayout(0, 20));
         setBackground(AppTheme.BACKGROUND);
         setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
 
+        // Welcome section
         JPanel welcomePanel = new JPanel(new BorderLayout(0, 8));
         welcomePanel.setOpaque(false);
 
@@ -47,39 +48,30 @@ public class AgentDashboardPanel extends JPanel {
         heading.setForeground(AppTheme.TEXT_PRIMARY);
 
         JLabel subtitle = new JLabel(
-            "Manage your assigned deliveries and track their progress."
-        );
+                "Manage your assigned deliveries and track their progress.");
         subtitle.setFont(new Font("SansSerif", Font.PLAIN, 14));
         subtitle.setForeground(AppTheme.TEXT_SECONDARY);
 
         welcomePanel.add(heading, BorderLayout.NORTH);
         welcomePanel.add(subtitle, BorderLayout.CENTER);
 
+        // Statistics cards
         JPanel cardsPanel = new JPanel(new GridLayout(1, 3, 18, 0));
         cardsPanel.setOpaque(false);
         cardsPanel.setPreferredSize(new Dimension(0, 135));
 
         JPanel deliveriesCard = createStatCard(
-            "My Deliveries",
-            "0",
-            "Active assigned parcels"
-        );
+                "My Deliveries", "0", "Active assigned parcels");
         deliveriesValue = (JLabel) deliveriesCard.getClientProperty("valueLabel");
         cardsPanel.add(deliveriesCard);
 
         JPanel progressCard = createStatCard(
-            "In Progress",
-            "0",
-            "Currently being delivered"
-        );
+                "In Progress", "0", "Currently being delivered");
         inProgressValue = (JLabel) progressCard.getClientProperty("valueLabel");
         cardsPanel.add(progressCard);
 
         JPanel deliveredCard = createStatCard(
-            "Delivered",
-            "0",
-            "Successfully completed"
-        );
+                "Delivered", "0", "Successfully completed");
         deliveredValue = (JLabel) deliveredCard.getClientProperty("valueLabel");
         cardsPanel.add(deliveredCard);
 
@@ -88,12 +80,12 @@ public class AgentDashboardPanel extends JPanel {
         mainContent.add(welcomePanel, BorderLayout.NORTH);
         mainContent.add(cardsPanel, BorderLayout.CENTER);
 
+        // Delivery overview
         JPanel activityPanel = new JPanel(new BorderLayout(0, 12));
         activityPanel.setBackground(AppTheme.CARD);
         activityPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(AppTheme.BORDER),
-            BorderFactory.createEmptyBorder(20, 20, 20, 20)
-        ));
+                BorderFactory.createLineBorder(AppTheme.BORDER),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
 
         JLabel activityHeading = new JLabel("Delivery Overview");
         activityHeading.setFont(new Font("SansSerif", Font.BOLD, 18));
@@ -107,7 +99,6 @@ public class AgentDashboardPanel extends JPanel {
         activityPanel.add(overviewText, BorderLayout.CENTER);
 
         mainContent.add(activityPanel, BorderLayout.SOUTH);
-
         add(mainContent, BorderLayout.CENTER);
 
         loadDashboard(agentId);
@@ -119,9 +110,8 @@ public class AgentDashboardPanel extends JPanel {
         JPanel card = new JPanel(new BorderLayout(0, 10));
         card.setBackground(AppTheme.CARD);
         card.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(AppTheme.BORDER),
-            BorderFactory.createEmptyBorder(18, 18, 18, 18)
-        ));
+                BorderFactory.createLineBorder(AppTheme.BORDER),
+                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setForeground(AppTheme.TEXT_SECONDARY);
@@ -135,9 +125,7 @@ public class AgentDashboardPanel extends JPanel {
         descriptionLabel.setForeground(AppTheme.TEXT_SECONDARY);
         descriptionLabel.setFont(new Font("SansSerif", Font.PLAIN, 12));
 
-        JPanel valuePanel = new JPanel(
-            new FlowLayout(FlowLayout.LEFT, 0, 0)
-        );
+        JPanel valuePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         valuePanel.setOpaque(false);
         valuePanel.add(valueLabel);
 
@@ -151,7 +139,6 @@ public class AgentDashboardPanel extends JPanel {
     }
 
     public void loadDashboard(long agentId) {
-
         if (agentId <= 0) {
             showError("Invalid delivery agent ID.");
             return;
@@ -166,17 +153,15 @@ public class AgentDashboardPanel extends JPanel {
             int completed = stats.getOrDefault("completed", 0);
 
             deliveriesValue.setText(
-                String.valueOf(assigned + accepted + inProgress)
-            );
+                    String.valueOf(assigned + accepted + inProgress));
             inProgressValue.setText(String.valueOf(inProgress));
             deliveredValue.setText(String.valueOf(completed));
 
             overviewText.setText(
-                "Assigned: " + assigned
-                + "   |   Accepted: " + accepted
-                + "   |   In progress: " + inProgress
-                + "   |   Completed: " + completed
-            );
+                    "Assigned: " + assigned
+                    + "   |   Accepted: " + accepted
+                    + "   |   In progress: " + inProgress
+                    + "   |   Completed: " + completed);
 
         } catch (SQLException e) {
             showError("Unable to load dashboard data: " + e.getMessage());

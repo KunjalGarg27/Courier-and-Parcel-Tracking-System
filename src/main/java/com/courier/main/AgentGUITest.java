@@ -24,6 +24,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 
+import com.courier.model.User;
+
 import com.courier.dao.DeliveryAgentDAO;
 import com.courier.util.AppTheme;
 import com.courier.view.agent.AgentDashboardPanel;
@@ -44,100 +46,167 @@ public class AgentGUITest {
         SwingUtilities.invokeLater(AgentGUITest::createGUI);
     }
 
-    private static void createGUI() {
-        try {
-            agentId = dao.getAgentIdByEmail("agent.test@kahinbhi.com");
 
-            if (agentId == -1) {
-                JOptionPane.showMessageDialog(
-                    null,
-                    "Agent account not found in the database."
-                );
-                return;
-            }
+private static void createGUI() {
+    try {
+        agentId = dao.getAgentIdByEmail("agent.test@kahinbhi.com");
 
-            agentProfile = dao.getAgentProfile(agentId);
-
-            if (agentProfile == null) {
-                JOptionPane.showMessageDialog(
-                    null,
-                    "Could not load the delivery agent profile."
-                );
-                return;
-            }
-
-            String agentName = "Lovedeep Singh";
-            frame = new BaseFrame(
-                "Delivery Agent Portal",
-                agentName,
-                "Delivery Agent"
-            );
-
-            JPanel root = new JPanel(new BorderLayout());
-            root.setBackground(AppTheme.BACKGROUND);
-
-            SidebarPanel sidebar = new SidebarPanel(
-                new String[] {
-                    "Dashboard",
-                    "My Deliveries",
-                    "Tracking",
-                    "Delivery History",
-                    "Settings"
-                }
-            );
-
-            mainArea = new JPanel(new BorderLayout());
-            mainArea.setBackground(AppTheme.BACKGROUND);
-
-            root.add(sidebar, BorderLayout.WEST);
-            root.add(mainArea, BorderLayout.CENTER);
-
-            frame.setContent(root);
-
-            sidebar.setMenuAction(
-                "Dashboard",
-                () -> showContent(createDashboard())
-            );
-
-            sidebar.setMenuAction(
-                "My Deliveries",
-                () -> showContent(createMyDeliveries())
-            );
-
-            sidebar.setMenuAction(
-                "Tracking",
-                () -> showContent(createTracking())
-            );
-
-            sidebar.setMenuAction(
-                "Delivery History",
-                () -> showContent(createDeliveryHistory())
-            );
-
-            sidebar.setMenuAction(
-                "Settings",
-                () -> showContent(new AgentSettingsPanel(agentId))
-            );
-
-            showContent(createDashboard());
-            frame.setVisible(true);
-
-        } catch (SQLException e) {
+        if (agentId == -1) {
             JOptionPane.showMessageDialog(
                 null,
-                "Could not connect to the database:\n" + e.getMessage(),
-                "Database Error",
-                JOptionPane.ERROR_MESSAGE
+                "Agent account not found in the database."
             );
-            e.printStackTrace();
+            return;
         }
+
+        agentProfile = dao.getAgentProfile(agentId);
+
+        if (agentProfile == null) {
+            JOptionPane.showMessageDialog(
+                null,
+                "Could not load the delivery agent profile."
+            );
+            return;
+        }
+
+        createGUIForAuthenticatedAgent(null);
+
+    } catch (SQLException e) {
+        JOptionPane.showMessageDialog(
+            null,
+            "Could not connect to the database:\n" + e.getMessage(),
+            "Database Error",
+            JOptionPane.ERROR_MESSAGE
+        );
+        e.printStackTrace();
     }
+}
+
+	private static void createGUIForAuthenticatedAgent(
+	        com.courier.model.User user) {
+	
+	    String agentName;
+	
+	    if (user != null) {
+	        agentName = user.getFullName();
+	    } else {
+	        agentName = agentProfile[0];
+	    }
+	
+	    frame = new BaseFrame(
+	        "Delivery Agent Portal",
+	        agentName,
+	        "Delivery Agent"
+	    );
+	
+	    JPanel root = new JPanel(new BorderLayout());
+	    root.setBackground(AppTheme.BACKGROUND);
+	
+	    SidebarPanel sidebar = new SidebarPanel(
+	        new String[] {
+	            "Dashboard",
+	            "My Deliveries",
+	            "Tracking",
+	            "Delivery History",
+	            "Settings"
+	        }
+	    );
+	
+	    mainArea = new JPanel(new BorderLayout());
+	    mainArea.setBackground(AppTheme.BACKGROUND);
+	
+	    root.add(sidebar, BorderLayout.WEST);
+	    root.add(mainArea, BorderLayout.CENTER);
+	
+	    frame.setContent(root);
+	
+	    sidebar.setMenuAction(
+	        "Dashboard",
+	        () -> showContent(createDashboard())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "My Deliveries",
+	        () -> showContent(createMyDeliveries())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Tracking",
+	        () -> showContent(createTracking())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Delivery History",
+	        () -> showContent(createDeliveryHistory())
+	    );
+	
+	    sidebar.setMenuAction(
+	        "Settings",
+	        () -> showContent(new AgentSettingsPanel(agentId))
+	    );
+	
+	    showContent(createDashboard());
+	    frame.setVisible(true);
+	}
+
 
     private static void showContent(JPanel panel) {
         mainArea.removeAll();
         mainArea.add(panel, BorderLayout.CENTER);
         mainArea.revalidate();
         mainArea.repaint();
+    }
+    
+    public static void openForUser(User user) {
+        if (user == null || user.getEmail() == null) {
+            javax.swing.JOptionPane.showMessageDialog(
+                null,
+                "Unable to identify the logged-in delivery agent.",
+                "Login Error",
+                javax.swing.JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
+
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                agentId = dao.getAgentIdByEmail(user.getEmail());
+
+                if (agentId == -1) {
+                    javax.swing.JOptionPane.showMessageDialog(
+                        null,
+                        "No delivery-agent account is linked to this login.",
+                        "Account Not Found",
+                        javax.swing.JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                agentProfile = dao.getAgentProfile(agentId);
+
+                if (agentProfile == null) {
+                    javax.swing.JOptionPane.showMessageDialog(
+                        null,
+                        "Unable to load your delivery-agent profile.",
+                        "Profile Error",
+                        javax.swing.JOptionPane.ERROR_MESSAGE
+                    );
+                    return;
+                }
+
+                createGUIForAuthenticatedAgent(user);
+
+            } catch (java.sql.SQLException ex) {
+                javax.swing.JOptionPane.showMessageDialog(
+                    null,
+                    "Unable to open the delivery-agent portal:\n"
+                        + ex.getMessage(),
+                    "Database Error",
+                    javax.swing.JOptionPane.ERROR_MESSAGE
+                );
+                ex.printStackTrace();
+            }
+        });
     }
 
     // DASHBOARD
@@ -175,17 +244,13 @@ public class AgentGUITest {
 
         try {
             List<String[]> deliveries = dao.getAssignedDeliveries(agentId);
-
             for (String[] d : deliveries) {
                 model.addRow(new Object[] {
-                    d[2],
-                    d[3],
-                    d[4],
-                    d[5],
-                    d[7],
-                    d[0],
-                    d[6]
+                    d[2], d[3], d[4], d[5], d[7], d[0], d[6]
                 });
+            }
+            if (deliveries.isEmpty()) {
+                System.out.println("No active deliveries returned for agent ID " + agentId);
             }
 
         } catch (SQLException e) {
@@ -195,6 +260,7 @@ public class AgentGUITest {
                 "Database Error",
                 JOptionPane.ERROR_MESSAGE
             );
+            e.printStackTrace();
         }
 
         hideColumn(table, "Assignment ID");
