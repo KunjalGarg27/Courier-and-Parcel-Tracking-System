@@ -244,17 +244,13 @@ private static void createGUI() {
 
         try {
             List<String[]> deliveries = dao.getAssignedDeliveries(agentId);
-
             for (String[] d : deliveries) {
                 model.addRow(new Object[] {
-                    d[2],
-                    d[3],
-                    d[4],
-                    d[5],
-                    d[7],
-                    d[0],
-                    d[6]
+                    d[2], d[3], d[4], d[5], d[7], d[0], d[6]
                 });
+            }
+            if (deliveries.isEmpty()) {
+                System.out.println("No active deliveries returned for agent ID " + agentId);
             }
 
         } catch (SQLException e) {
@@ -264,6 +260,7 @@ private static void createGUI() {
                 "Database Error",
                 JOptionPane.ERROR_MESSAGE
             );
+            e.printStackTrace();
         }
 
         hideColumn(table, "Assignment ID");

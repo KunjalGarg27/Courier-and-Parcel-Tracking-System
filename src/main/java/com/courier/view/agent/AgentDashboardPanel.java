@@ -29,13 +29,7 @@ public class AgentDashboardPanel extends JPanel {
     private JLabel deliveredValue;
     private JLabel overviewText;
 
-    /**
-     * Kept for compatibility with existing code that calls
-     * new AgentDashboardPanel().
-     *
-     * TODO: Replace the fallback ID with the authenticated agent's ID
-     * when integrating the delivery-agent login.
-     */
+    /** Compatibility constructor for standalone testing only. */
     public AgentDashboardPanel() {
         this(1L);
     }

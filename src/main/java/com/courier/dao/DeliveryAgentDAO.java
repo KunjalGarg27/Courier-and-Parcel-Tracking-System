@@ -279,160 +279,78 @@ public class DeliveryAgentDAO {
     }
 
     public List<String[]> getAssignedDeliveries(long agentId)
-
             throws SQLException {
-
+        // Query assignments first; optional address/tracking data must not
+        // hide an otherwise valid assignment from the agent.
         String sql = """
-
-            SELECT
-
-                da.assignment_id,
-
-                s.shipment_id,
-
-                s.tracking_number,
-
-                s.receiver_name,
-
-                s.receiver_phone,
-
-                CONCAT(
-
-                    adr.address_line1, ', ',
-
-                    COALESCE(CONCAT(adr.address_line2, ', '), ''),
-
-                    adr.city, ', ', adr.state, ' ',
-
-                    adr.postal_code
-
-                ) AS delivery_address,
-
-                ast.status_name AS assignment_status,
-
-                ss.status_name AS shipment_status,
-
-                s.expected_delivery_at
-
+            SELECT da.assignment_id, s.shipment_id, s.tracking_number,
+                   s.receiver_name, s.receiver_phone,
+                   CONCAT(
+                       COALESCE(adr.address_line1, ''),
+                       CASE WHEN adr.address_line2 IS NOT NULL AND adr.address_line2 <> ''
+                            THEN CONCAT(', ', adr.address_line2) ELSE '' END,
+                       CASE WHEN adr.city IS NOT NULL AND adr.city <> ''
+                            THEN CONCAT(', ', adr.city) ELSE '' END,
+                       CASE WHEN adr.state IS NOT NULL AND adr.state <> ''
+                            THEN CONCAT(', ', adr.state) ELSE '' END,
+                       CASE WHEN adr.postal_code IS NOT NULL AND adr.postal_code <> ''
+                            THEN CONCAT(' ', adr.postal_code) ELSE '' END
+                   ) AS delivery_address,
+                   ast.status_name AS assignment_status,
+                   ss.status_name AS shipment_status,
+                   s.expected_delivery_at
             FROM delivery_assignments da
-
-            JOIN assignment_statuses ast
-
-              ON ast.assignment_status_id = da.assignment_status_id
-
-            JOIN shipments s ON s.shipment_id = da.shipment_id
-
-            JOIN addresses adr
-
-              ON adr.address_id = s.delivery_address_id
-
+            LEFT JOIN assignment_statuses ast
+                ON ast.assignment_status_id = da.assignment_status_id
+            LEFT JOIN shipments s ON s.shipment_id = da.shipment_id
+            LEFT JOIN addresses adr ON adr.address_id = s.delivery_address_id
             LEFT JOIN shipment_tracking_events ste
-
-              ON ste.event_id = (
-
-                  SELECT ste2.event_id
-
-                  FROM shipment_tracking_events ste2
-
-                  WHERE ste2.shipment_id = s.shipment_id
-
-                  ORDER BY ste2.event_time DESC, ste2.event_id DESC
-
-                  LIMIT 1
-
-              )
-
-            LEFT JOIN shipment_statuses ss
-
-              ON ss.status_id = ste.status_id
-
+                ON ste.event_id = (
+                    SELECT ste2.event_id
+                    FROM shipment_tracking_events ste2
+                    WHERE ste2.shipment_id = s.shipment_id
+                    ORDER BY ste2.event_time DESC, ste2.event_id DESC
+                    LIMIT 1
+                )
+            LEFT JOIN shipment_statuses ss ON ss.status_id = ste.status_id
             WHERE da.agent_id = ?
-
-              AND ast.status_name IN ('ASSIGNED', 'ACCEPTED', 'IN_PROGRESS')
-
-            ORDER BY da.assigned_at DESC
-
+            ORDER BY da.assigned_at DESC, da.assignment_id DESC
             """;
 
         List<String[]> deliveries = new ArrayList<>();
-
         try (Connection con = DBConnection.getConnection();
-
              PreparedStatement ps = con.prepareStatement(sql)) {
-
             ps.setLong(1, agentId);
-
             try (ResultSet rs = ps.executeQuery()) {
-
                 while (rs.next()) {
-
-                    Timestamp expected =
-
-                        rs.getTimestamp("expected_delivery_at");
-
-                    String receiverPhone = rs.getString("receiver_phone");
-
+                    String status = rs.getString("assignment_status");
+                    status = status == null ? "UNKNOWN" : status.trim().toUpperCase();
+                    if (!status.equals("ASSIGNED") && !status.equals("ACCEPTED")
+                            && !status.equals("IN_PROGRESS")) {
+                        continue;
+                    }
+                    Timestamp expected = rs.getTimestamp("expected_delivery_at");
+                    String phone = rs.getString("receiver_phone");
                     String shipmentStatus = rs.getString("shipment_status");
-
+                    String tracking = rs.getString("tracking_number");
+                    String receiver = rs.getString("receiver_name");
+                    String address = rs.getString("delivery_address");
                     deliveries.add(new String[] {
-
                         String.valueOf(rs.getLong("assignment_id")),
-
                         String.valueOf(rs.getLong("shipment_id")),
-
-                        rs.getString("tracking_number"),
-
-                        rs.getString("receiver_name"),
-
-                        receiverPhone == null ? "Not provided" : receiverPhone,
-
-                        rs.getString("delivery_address"),
-
-                        rs.getString("assignment_status"),
-
+                        tracking == null ? "Not available" : tracking,
+                        receiver == null ? "Not provided" : receiver,
+                        phone == null ? "Not provided" : phone,
+                        address == null || address.isBlank() ? "Address not available" : address,
+                        status,
                         shipmentStatus == null ? "Not recorded" : shipmentStatus,
-
                         expected == null ? "Not specified" : expected.toString()
-
                     });
-
                 }
-
             }
-
         }
-
         return deliveries;
-
     }
-
-    /**
-
-     * Returns completed and rejected deliveries for the selected agent.
-
-     *
-
-     * Returned array indexes:
-
-     * 0 = Assignment ID
-
-     * 1 = Tracking Number
-
-     * 2 = Receiver Name
-
-     * 3 = Receiver Phone
-
-     * 4 = Delivery Address
-
-     * 5 = Assigned At
-
-     * 6 = Completed At
-
-     * 7 = Assignment Status
-
-     * 8 = Rejection Reason
-
-     */
 
     public List<String[]> getDeliveryHistory(long agentId)
 
@@ -451,16 +369,21 @@ public class DeliveryAgentDAO {
                 s.receiver_phone,
 
                 CONCAT(
-
-                    adr.address_line1, ', ',
-
-                    COALESCE(CONCAT(adr.address_line2, ', '), ''),
-
-                    adr.city, ', ', adr.state, ' ',
-
-                    adr.postal_code
-
-                ) AS delivery_address,
+				    COALESCE(adr.address_line1, ''),
+				    CASE
+				        WHEN adr.address_line2 IS NOT NULL
+				             AND adr.address_line2 <> ''
+				        THEN CONCAT(', ', adr.address_line2)
+				        ELSE ''
+				    END,
+				    CASE WHEN adr.city IS NOT NULL AND adr.city <> ''
+				         THEN CONCAT(', ', adr.city) ELSE '' END,
+				    CASE WHEN adr.state IS NOT NULL AND adr.state <> ''
+				         THEN CONCAT(', ', adr.state) ELSE '' END,
+				    CASE WHEN adr.postal_code IS NOT NULL
+				              AND adr.postal_code <> ''
+				         THEN CONCAT(' ', adr.postal_code) ELSE '' END
+				) AS delivery_address,
 
                 da.assigned_at,
 
